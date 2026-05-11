@@ -1,0 +1,31 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/linuxfoundation/lfx-v2-invite-service
+  pullPolicy: IfNotPresent
+  tag: ""
+
+env:
+  NATS_URL: "nats://lfx-platform-nats.lfx.svc.cluster.local:4222"
+  EMAIL_SMTP_HOST: "lfx-platform-mailpit-smtp.lfx.svc.cluster.local"
+  EMAIL_SMTP_PORT: "25"
+  LFX_BASE_URL: "https://lfx.linuxfoundation.org"
+  LOG_LEVEL: "info"
+
+nats:
+  stream_project_settings_events:
+    creation: true
+    keep: true
+    name: project-settings-events
+    subjects:
+      - lfx.projects-api.project_settings.updated
+    storage: file
+    retention: limits
+    maxAge: 24h
+    maxBytes: "104857600"
+    maxMsgs: "100000"
+    replicas: 1
+    compression: s2
