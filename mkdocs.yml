@@ -1,0 +1,6 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+---
+site_name: LFX V2 Lfx V2 Invite Service
+site_description: LFX V2 Platform Invite Service
+plugins:
+  - techdocs-core
