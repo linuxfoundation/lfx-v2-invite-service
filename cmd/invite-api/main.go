@@ -32,7 +32,7 @@ func init() {
 func main() {
 	ctx := context.Background()
 
-	otelConfig := utils.OTelConfigFromEnv()
+	otelConfig := utils.OTelConfigFromEnv(ctx)
 	if otelConfig.ServiceVersion == "" {
 		otelConfig.ServiceVersion = Version
 	}

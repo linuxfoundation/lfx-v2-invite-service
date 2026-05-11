@@ -14,12 +14,9 @@ import (
 	pkgerrors "github.com/linuxfoundation/lfx-v2-invite-service/pkg/errors"
 )
 
-const defaultRequestTimeout = 10 * time.Second
-
 // Client wraps the NATS connection and provides infrastructure operations.
 type Client struct {
-	conn    *nats.Conn
-	timeout time.Duration
+	conn *nats.Conn
 }
 
 // New creates a NATS client connected to the given URL.
@@ -40,7 +37,7 @@ func New(ctx context.Context, url string) (*Client, error) {
 	}
 
 	slog.InfoContext(ctx, "NATS connected", "url", conn.ConnectedUrl())
-	return &Client{conn: conn, timeout: defaultRequestTimeout}, nil
+	return &Client{conn: conn}, nil
 }
 
 // Close drains and closes the NATS connection.
@@ -68,8 +65,8 @@ func (c *Client) Request(ctx context.Context, subject string, data []byte) ([]by
 }
 
 // ConsumeWithJetStream binds a durable JetStream consumer and delivers messages to handler.
-// ACK/NAK-with-backoff is handled here; the handler only needs to return an error.
-// The returned stop function must be called on shutdown.
+// Messages are ACKed on success and NAKed on handler error; redelivery timing is governed
+// by the ConsumerConfig (MaxDeliver + AckWait). The returned stop function must be called on shutdown.
 func (c *Client) ConsumeWithJetStream(
 	ctx context.Context,
 	streamName string,

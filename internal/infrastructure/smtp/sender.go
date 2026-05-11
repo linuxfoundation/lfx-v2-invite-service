@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/smtp"
+	"strings"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	pkgerrors "github.com/linuxfoundation/lfx-v2-invite-service/pkg/errors"
@@ -50,7 +51,16 @@ func (s *Sender) SendProjectAddedNotification(ctx context.Context, n *model.Proj
 	return nil
 }
 
+// sanitizeHeader strips CR and LF from a string to prevent email header injection.
+func sanitizeHeader(s string) string {
+	s = strings.ReplaceAll(s, "\r", "")
+	s = strings.ReplaceAll(s, "\n", "")
+	return s
+}
+
 func (s *Sender) send(ctx context.Context, to, subject, htmlBody, plainBody string) error {
+	to = sanitizeHeader(to)
+	subject = sanitizeHeader(subject)
 	addr := fmt.Sprintf("%s:%s", s.config.Host, s.config.Port)
 	from := s.config.FromAddr
 	fromHeader := from

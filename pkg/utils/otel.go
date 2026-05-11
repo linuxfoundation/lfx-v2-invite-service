@@ -81,7 +81,7 @@ type OTelConfig struct {
 
 // OTelConfigFromEnv creates an OTelConfig from environment variables.
 // See OTelConfig struct fields for supported environment variables.
-func OTelConfigFromEnv() OTelConfig {
+func OTelConfigFromEnv(ctx context.Context) OTelConfig {
 	serviceName := os.Getenv("OTEL_SERVICE_NAME")
 	if serviceName == "" {
 		serviceName = "lfx-v2-invite-service"
@@ -124,7 +124,7 @@ func OTelConfigFromEnv() OTelConfig {
 			if parsed >= 0.0 && parsed <= 1.0 {
 				tracesSampleRatio = parsed
 			} else {
-				slog.Warn("OTEL_TRACES_SAMPLE_RATIO must be between 0.0 and 1.0, using default 1.0",
+				slog.WarnContext(ctx, "OTEL_TRACES_SAMPLE_RATIO must be between 0.0 and 1.0, using default 1.0",
 					"provided-value", ratio)
 			}
 		} else {
@@ -163,7 +163,7 @@ func OTelConfigFromEnv() OTelConfig {
 // SetupOTelSDK bootstraps the OpenTelemetry pipeline with OTLP exporters.
 // If it does not return an error, make sure to call shutdown for proper cleanup.
 func SetupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, err error) {
-	return SetupOTelSDKWithConfig(ctx, OTelConfigFromEnv())
+	return SetupOTelSDKWithConfig(ctx, OTelConfigFromEnv(ctx))
 }
 
 // SetupOTelSDKWithConfig bootstraps the OpenTelemetry pipeline with the provided configuration.
@@ -203,7 +203,7 @@ func SetupOTelSDKWithConfig(ctx context.Context, cfg OTelConfig) (shutdown func(
 	}
 
 	// Set up propagator.
-	prop := newPropagator(cfg)
+	prop := newPropagator(ctx, cfg)
 	otel.SetTextMapPropagator(prop)
 
 	// Set up trace provider if enabled.
@@ -259,7 +259,7 @@ func newResource(cfg OTelConfig) (*resource.Resource, error) {
 
 // newPropagator creates a composite text map propagator based on the configured propagators.
 // Supported propagators: "tracecontext", "baggage", "jaeger"
-func newPropagator(cfg OTelConfig) propagation.TextMapPropagator {
+func newPropagator(ctx context.Context, cfg OTelConfig) propagation.TextMapPropagator {
 	var propagators []propagation.TextMapPropagator
 
 	for _, p := range strings.Split(cfg.Propagators, ",") {

@@ -31,9 +31,10 @@ func (c *Client) StartProjectSettingsConsumer(
 		FilterSubjects: []string{
 			constants.ProjectSettingsUpdatedSubject,
 		},
-		AckPolicy:  jetstream.AckExplicitPolicy,
-		MaxDeliver: 5,
-		AckWait:    30 * time.Second,
+		AckPolicy:     jetstream.AckExplicitPolicy,
+		DeliverPolicy: jetstream.DeliverNewPolicy,
+		MaxDeliver:    5,
+		AckWait:       30 * time.Second,
 	}
 
 	return c.ConsumeWithJetStream(ctx, constants.StreamNameProjectSettingsEvents, cfg,
