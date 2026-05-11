@@ -4,11 +4,13 @@ This repository contains the source code for the LFX v2 invite service.
 
 ## Overview
 
-The LFX v2 Invite Service handles two responsibilities:
+The LFX v2 Invite Service handles the following NATS events:
 
-1. **Phase 1 — "You were added" notifications**: Subscribes to `lfx.projects-api.project_settings.updated` NATS events and sends transactional email notifications to existing-LFID users who are newly granted access to a project or foundation.
+| Subject | Description |
+| ------- | ----------- |
+| `lfx.projects-api.project_settings.updated` | Sends a "you were added" transactional email to existing-LFID users newly granted access to a project or foundation. |
 
-2. **Invite issuance (future)**: Will issue time-limited invite tokens (via NATS KV) for non-LFID users, expose an `/invite/:uuid` acceptance endpoint, and broadcast acceptance events so resource-owning services can reconcile member records.
+An HTTP API for creating and managing invites for non-LFID users is coming soon.
 
 ## File Structure
 
@@ -41,9 +43,9 @@ The LFX v2 Invite Service handles two responsibilities:
 
 ## Key Design Decisions
 
-- **No HTTP API in Phase 1** — the service is a pure NATS subscriber. An HTTP server will be added when the `/invite/:uuid` acceptance endpoint is needed.
+- **No HTTP API yet** — the service is currently a pure NATS subscriber. An HTTP server will be added when the invite management API is needed.
 - **JetStream for durability** — the service creates its own `project-settings-events` stream so notifications are not lost if the service is temporarily down.
-- **Event-driven, no source service changes** — project-service already publishes `project_settings.updated`; no modifications to upstream services are required for Phase 1.
+- **Event-driven, no source service changes** — project-service already publishes `project_settings.updated`; no modifications to upstream services are required.
 - **Config injected via struct** — all env vars are read in `cmd/invite-api/service/config.go` and passed into service constructors; no `os.Getenv` calls in business logic.
 
 ## Environment Variables
@@ -99,9 +101,8 @@ make check
 
 ## Releases
 
-1. Update `charts/lfx-v2-invite-service/Chart.yaml` `version` field.
-2. Merge the PR, then create a GitHub release with a `v{version}` tag.
-3. CI builds and publishes the container image and Helm chart automatically.
+1. Merge the PR, then create a GitHub release with a `v{version}` tag.
+2. CI builds and publishes the container image and Helm chart automatically.
 
 ## License
 
