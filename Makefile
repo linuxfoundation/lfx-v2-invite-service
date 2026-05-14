@@ -28,6 +28,9 @@ setup:
 	go mod download
 	go mod tidy
 
+.PHONY: deps
+deps: setup
+
 .PHONY: build
 build:
 	go build \

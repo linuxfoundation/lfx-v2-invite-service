@@ -9,11 +9,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	smtptmpl "github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/smtp"
 	pkgerrors "github.com/linuxfoundation/lfx-v2-invite-service/pkg/errors"
 )
+
+// emailServiceTimeout is the maximum time to wait for the email service to accept a message.
+const emailServiceTimeout = 10 * time.Second
 
 // NATSEmailSender implements port.EmailSender by forwarding rendered email bodies
 // to the email service via NATS request/reply. The invite service owns and renders
@@ -56,7 +60,13 @@ func (s *NATSEmailSender) SendProjectAddedNotification(ctx context.Context, n *m
 		return pkgerrors.NewUnexpected("failed to marshal email request", err)
 	}
 
-	reply, err := s.client.Request(ctx, s.subject, data)
+	// Enforce a hard deadline so the caller is never blocked indefinitely if the
+	// email service is down or slow. The JetStream message handler context has no
+	// deadline by default.
+	reqCtx, cancel := context.WithTimeout(ctx, emailServiceTimeout)
+	defer cancel()
+
+	reply, err := s.client.Request(reqCtx, s.subject, data)
 	if err != nil {
 		return err
 	}

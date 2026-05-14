@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	testBaseURL    = "https://lfx.example.com"
-	testProjectUID = "proj-abc123"
+	testBaseURL     = "https://lfx.example.com"
+	testProjectUID  = "proj-abc123"
 	testProjectName = "Test Project"
 )
 
@@ -388,5 +388,38 @@ func TestHandleSendInvite_NoInviter(t *testing.T) {
 	}
 	if email.Calls[0].InviterName != "" {
 		t.Errorf("expected empty inviter name, got %q", email.Calls[0].InviterName)
+	}
+}
+
+func TestHandleSendInvite_UnrecognisedRole_Skips(t *testing.T) {
+	email := &mocks.EmailSender{}
+	reader := &mocks.ProjectNameReader{}
+	svc := newService(email, reader)
+
+	req := baseInviteRequest()
+	req.Role = "superadmin"
+	if err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("expected nil error for unrecognised role, got %v", err)
+	}
+	if len(email.Calls) != 0 {
+		t.Error("expected no email sent for unrecognised role")
+	}
+}
+
+func TestHandleSendInvite_ViewRole_Accepted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	reader := &mocks.ProjectNameReader{}
+	svc := newService(email, reader)
+
+	req := baseInviteRequest()
+	req.Role = string(model.RoleView)
+	if err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("expected nil error for View role, got %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email for View role, got %d", len(email.Calls))
+	}
+	if email.Calls[0].Role != model.RoleView {
+		t.Errorf("role: got %q, want %q", email.Calls[0].Role, model.RoleView)
 	}
 }

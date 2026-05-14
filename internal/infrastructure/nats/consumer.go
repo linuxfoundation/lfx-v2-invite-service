@@ -21,6 +21,21 @@ type ProjectSettingsHandler func(ctx context.Context, msg *model.ProjectSettings
 // SendInviteHandler is the function signature for handling a decoded send-invite request.
 type SendInviteHandler func(ctx context.Context, req *model.SendInviteRequest) error
 
+// durableConsumerConfig returns a standard JetStream consumer config for the given
+// consumer name and filter subjects. All consumers in this service share the same
+// ACK policy, delivery policy, retry limit, and ACK wait.
+func durableConsumerConfig(name string, filterSubjects []string) jetstream.ConsumerConfig {
+	return jetstream.ConsumerConfig{
+		Name:           name,
+		Durable:        name,
+		FilterSubjects: filterSubjects,
+		AckPolicy:      jetstream.AckExplicitPolicy,
+		DeliverPolicy:  jetstream.DeliverNewPolicy,
+		MaxDeliver:     5,
+		AckWait:        30 * time.Second,
+	}
+}
+
 // StartProjectSettingsConsumer binds a durable JetStream consumer on the
 // project-settings-events stream and delivers decoded messages to handler.
 // Returns a stop function the caller must invoke on shutdown.
@@ -28,17 +43,10 @@ func (c *Client) StartProjectSettingsConsumer(
 	ctx context.Context,
 	handler ProjectSettingsHandler,
 ) (func(), error) {
-	cfg := jetstream.ConsumerConfig{
-		Name:    constants.ConsumerNameProjectSettingsNotify,
-		Durable: constants.ConsumerNameProjectSettingsNotify,
-		FilterSubjects: []string{
-			constants.ProjectSettingsUpdatedSubject,
-		},
-		AckPolicy:     jetstream.AckExplicitPolicy,
-		DeliverPolicy: jetstream.DeliverNewPolicy,
-		MaxDeliver:    5,
-		AckWait:       30 * time.Second,
-	}
+	cfg := durableConsumerConfig(
+		constants.ConsumerNameProjectSettingsNotify,
+		[]string{constants.ProjectSettingsUpdatedSubject},
+	)
 
 	return c.ConsumeWithJetStream(ctx, constants.StreamNameProjectSettingsEvents, cfg,
 		func(ctx context.Context, subject string, data []byte) error {
@@ -64,17 +72,10 @@ func (c *Client) StartSendInviteConsumer(
 	ctx context.Context,
 	handler SendInviteHandler,
 ) (func(), error) {
-	cfg := jetstream.ConsumerConfig{
-		Name:    constants.ConsumerNameInviteRequestsHandler,
-		Durable: constants.ConsumerNameInviteRequestsHandler,
-		FilterSubjects: []string{
-			constants.SendInviteSubject,
-		},
-		AckPolicy:     jetstream.AckExplicitPolicy,
-		DeliverPolicy: jetstream.DeliverNewPolicy,
-		MaxDeliver:    5,
-		AckWait:       30 * time.Second,
-	}
+	cfg := durableConsumerConfig(
+		constants.ConsumerNameInviteRequestsHandler,
+		[]string{constants.SendInviteSubject},
+	)
 
 	return c.ConsumeWithJetStream(ctx, constants.StreamNameInviteRequests, cfg,
 		func(ctx context.Context, subject string, data []byte) error {

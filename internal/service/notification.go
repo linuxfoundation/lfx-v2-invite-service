@@ -129,13 +129,29 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		return nil
 	}
 
+	role := model.Role(req.Role)
+	if role != model.RoleManage && role != model.RoleView {
+		slog.WarnContext(ctx, "send_invite request has unrecognised role, skipping",
+			"project_uid", req.ProjectUID,
+			"role", req.Role,
+		)
+		s.auditNotification(ctx, &model.NotificationAuditEntry{
+			ProjectUID:     req.ProjectUID,
+			RecipientEmail: req.RecipientEmail,
+			Role:           role,
+			DeliveryState:  model.DeliveryStateSkipped,
+			ErrorMessage:   "unrecognised role value: " + req.Role,
+		})
+		return nil
+	}
+
 	n := &model.ProjectAddedNotification{
 		RecipientName:  req.RecipientName,
 		RecipientEmail: req.RecipientEmail,
 		InviterName:    req.InviterName,
 		ProjectUID:     req.ProjectUID,
 		ProjectName:    req.ProjectName,
-		Role:           model.Role(req.Role),
+		Role:           role,
 		DeepLinkURL:    req.DeepLinkURL,
 	}
 
@@ -145,6 +161,13 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 			"recipient_email", req.RecipientEmail,
 			"error", err,
 		)
+		s.auditNotification(ctx, &model.NotificationAuditEntry{
+			ProjectUID:     req.ProjectUID,
+			RecipientEmail: req.RecipientEmail,
+			Role:           role,
+			DeliveryState:  model.DeliveryStateFailed,
+			ErrorMessage:   err.Error(),
+		})
 		return fmt.Errorf("send invite notification for project %s: %w", req.ProjectUID, err)
 	}
 
@@ -152,6 +175,12 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		"project_uid", req.ProjectUID,
 		"recipient_email", req.RecipientEmail,
 	)
+	s.auditNotification(ctx, &model.NotificationAuditEntry{
+		ProjectUID:     req.ProjectUID,
+		RecipientEmail: req.RecipientEmail,
+		Role:           role,
+		DeliveryState:  model.DeliveryStateSent,
+	})
 	return nil
 }
 
