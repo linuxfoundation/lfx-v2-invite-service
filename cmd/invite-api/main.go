@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -30,6 +29,13 @@ func init() {
 }
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("fatal error", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	ctx := context.Background()
 
 	otelConfig := utils.OTelConfigFromEnv(ctx)
@@ -38,8 +44,7 @@ func main() {
 	}
 	otelShutdown, err := utils.SetupOTelSDKWithConfig(ctx, otelConfig)
 	if err != nil {
-		slog.ErrorContext(ctx, "error setting up OpenTelemetry SDK", "error", err)
-		os.Exit(1)
+		return err
 	}
 	defer func() {
 		shutCtx, cancel := context.WithTimeout(context.Background(), gracefulShutdownSeconds*time.Second)
@@ -58,15 +63,13 @@ func main() {
 	cfg := appsvc.AppConfigFromEnv()
 
 	if err := appsvc.InitInfrastructure(ctx, cfg); err != nil {
-		slog.ErrorContext(ctx, "failed to initialise infrastructure", "error", err)
-		os.Exit(1)
+		return err
 	}
 	defer appsvc.Shutdown()
 
 	stops, err := appsvc.StartSubscriptions(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to start subscriptions", "error", err)
-		os.Exit(1)
+		return err
 	}
 	defer func() {
 		for _, stop := range stops {
@@ -80,5 +83,6 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-quit
 
-	slog.InfoContext(ctx, "received shutdown signal, stopping", "signal", fmt.Sprintf("%s", sig))
+	slog.InfoContext(ctx, "received shutdown signal, stopping", "signal", sig.String())
+	return nil
 }
