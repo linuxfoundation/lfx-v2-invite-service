@@ -35,7 +35,8 @@ var projectAddedHTMLTmpl = template.Must(template.New("project-added-html").Pars
 </body>
 </html>`))
 
-func renderProjectAddedHTML(n *model.ProjectAddedNotification) string {
+// RenderProjectAddedHTML renders the HTML body for a project-added notification.
+func RenderProjectAddedHTML(n *model.ProjectAddedNotification) string {
 	var buf bytes.Buffer
 	if err := projectAddedHTMLTmpl.Execute(&buf, n); err != nil {
 		// Fall back to plain text indication — template execution should never fail
@@ -45,7 +46,8 @@ func renderProjectAddedHTML(n *model.ProjectAddedNotification) string {
 	return buf.String()
 }
 
-func renderProjectAddedPlain(n *model.ProjectAddedNotification) string {
+// RenderProjectAddedPlain renders the plain-text body for a project-added notification.
+func RenderProjectAddedPlain(n *model.ProjectAddedNotification) string {
 	inviterLine := ""
 	if n.InviterName != "" {
 		inviterLine = fmt.Sprintf("%s has added you to ", n.InviterName)

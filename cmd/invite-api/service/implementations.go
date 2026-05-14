@@ -8,7 +8,6 @@ import (
 	"log/slog"
 
 	natsinfra "github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/nats"
-	smtpinfra "github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/smtp"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-invite-service/pkg/constants"
 )
@@ -28,19 +27,11 @@ func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
 	}
 	NATSClient = nc
 
-	smtpSender := smtpinfra.NewSender(smtpinfra.Config{
-		Host:     cfg.SMTP.Host,
-		Port:     cfg.SMTP.Port,
-		Username: cfg.SMTP.Username,
-		Password: cfg.SMTP.Password,
-		FromAddr: constants.EmailFromAddress,
-		FromName: constants.EmailFromName,
-	})
-
+	emailSender := natsinfra.NewNATSEmailSender(nc, constants.EmailServiceSendSubject)
 	projectReader := natsinfra.NewProjectNameReader(nc)
 
 	NotificationSvc = service.NewNotificationService(
-		smtpSender,
+		emailSender,
 		projectReader,
 		service.NotificationConfig{
 			LFXBaseURL: cfg.LFXBaseURL,

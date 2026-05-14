@@ -119,6 +119,42 @@ func (s *NotificationService) HandleProjectSettingsUpdated(ctx context.Context, 
 	return firstErr
 }
 
+// HandleSendInvite processes a send-invite request from a resource service and
+// dispatches the invite notification email via the email service.
+func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.SendInviteRequest) error {
+	if req.RecipientEmail == "" {
+		slog.WarnContext(ctx, "send_invite request has no recipient email, skipping",
+			"project_uid", req.ProjectUID,
+		)
+		return nil
+	}
+
+	n := &model.ProjectAddedNotification{
+		RecipientName:  req.RecipientName,
+		RecipientEmail: req.RecipientEmail,
+		InviterName:    req.InviterName,
+		ProjectUID:     req.ProjectUID,
+		ProjectName:    req.ProjectName,
+		Role:           model.Role(req.Role),
+		DeepLinkURL:    req.DeepLinkURL,
+	}
+
+	if err := s.emailSender.SendProjectAddedNotification(ctx, n); err != nil {
+		slog.ErrorContext(ctx, "failed to send invite notification",
+			"project_uid", req.ProjectUID,
+			"recipient_email", req.RecipientEmail,
+			"error", err,
+		)
+		return fmt.Errorf("send invite notification for project %s: %w", req.ProjectUID, err)
+	}
+
+	slog.InfoContext(ctx, "invite notification sent",
+		"project_uid", req.ProjectUID,
+		"recipient_email", req.RecipientEmail,
+	)
+	return nil
+}
+
 // auditNotification writes a structured audit log entry. In Phase 1 this is a structured
 // log line; a persistent audit store will be wired in a later ticket.
 func (s *NotificationService) auditNotification(ctx context.Context, entry *model.NotificationAuditEntry) {

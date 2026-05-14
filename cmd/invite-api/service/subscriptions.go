@@ -27,6 +27,12 @@ var subscriptions = []subscription{
 			return nc.StartProjectSettingsConsumer(ctx, NotificationSvc.HandleProjectSettingsUpdated)
 		},
 	},
+	{
+		name: "send-invite",
+		start: func(ctx context.Context, nc *natsinfra.Client) (func(), error) {
+			return nc.StartSendInviteConsumer(ctx, NotificationSvc.HandleSendInvite)
+		},
+	},
 }
 
 // StartSubscriptions binds all NATS JetStream consumers and returns their stop functions.

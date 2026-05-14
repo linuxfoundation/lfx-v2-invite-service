@@ -23,6 +23,15 @@ const (
 	// InviteRevokedSubject is published when an invite is revoked.
 	InviteRevokedSubject = "lfx.invite-service.invite.revoked"
 
+	// SendInviteSubject is published by resource services to request an invite
+	// notification email. The invite service consumes this subject, renders the
+	// template, and forwards to the email service for delivery.
+	SendInviteSubject = "lfx.invite-service.send_invite"
+
+	// EmailServiceSendSubject is the NATS request/reply subject for the email service.
+	// The invite service publishes pre-rendered HTML/text email bodies here.
+	EmailServiceSendSubject = "lfx.email-service.send_email"
+
 	// StreamNameProjectSettingsEvents is the JetStream stream that captures project
 	// settings change events for durable delivery to the invite service.
 	StreamNameProjectSettingsEvents = "project-settings-events"
@@ -30,6 +39,14 @@ const (
 	// ConsumerNameProjectSettingsNotify is the durable JetStream consumer for
 	// sending "you were added" notifications on project settings changes.
 	ConsumerNameProjectSettingsNotify = "invite-service-project-settings-notify"
+
+	// StreamNameInviteRequests is the JetStream stream that captures send-invite
+	// requests published by resource services.
+	StreamNameInviteRequests = "invite-requests"
+
+	// ConsumerNameInviteRequestsHandler is the durable JetStream consumer that
+	// processes send-invite requests and dispatches notification emails.
+	ConsumerNameInviteRequestsHandler = "invite-service-send-invite"
 )
 
 // Email configuration constants
@@ -45,18 +62,6 @@ const (
 const (
 	// NATSURLEnvKey is the NATS server URL.
 	NATSURLEnvKey = "NATS_URL"
-
-	// EmailSMTPHostEnvKey is the SMTP server host.
-	EmailSMTPHostEnvKey = "EMAIL_SMTP_HOST"
-
-	// EmailSMTPPortEnvKey is the SMTP server port.
-	EmailSMTPPortEnvKey = "EMAIL_SMTP_PORT"
-
-	// EmailSMTPUsernameEnvKey is the SMTP username.
-	EmailSMTPUsernameEnvKey = "EMAIL_SMTP_USERNAME"
-
-	// EmailSMTPPasswordEnvKey is the SMTP password.
-	EmailSMTPPasswordEnvKey = "EMAIL_SMTP_PASSWORD"
 
 	// LFXBaseURLEnvKey is the base URL for LFX deep links.
 	LFXBaseURLEnvKey = "LFX_BASE_URL"

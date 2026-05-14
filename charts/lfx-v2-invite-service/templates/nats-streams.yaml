@@ -28,3 +28,31 @@ spec:
   compression: {{ .Values.nats.stream_project_settings_events.compression }}
   duplicateWindow: 2m
 {{- end }}
+---
+{{- if .Values.nats.stream_invite_requests.creation }}
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: {{ .Values.nats.stream_invite_requests.name }}
+  namespace: {{ .Release.Namespace }}
+  {{- if .Values.nats.stream_invite_requests.keep }}
+  annotations:
+    "helm.sh/resource-policy": keep
+  {{- end }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+spec:
+  name: {{ .Values.nats.stream_invite_requests.name }}
+  subjects:
+  {{- range .Values.nats.stream_invite_requests.subjects }}
+    - {{ . }}
+  {{- end }}
+  storage: {{ .Values.nats.stream_invite_requests.storage }}
+  retention: {{ .Values.nats.stream_invite_requests.retention }}
+  maxAge: {{ .Values.nats.stream_invite_requests.maxAge }}
+  maxBytes: {{ .Values.nats.stream_invite_requests.maxBytes }}
+  maxMsgs: {{ .Values.nats.stream_invite_requests.maxMsgs }}
+  replicas: {{ .Values.nats.stream_invite_requests.replicas }}
+  compression: {{ .Values.nats.stream_invite_requests.compression }}
+  duplicateWindow: 2m
+{{- end }}
