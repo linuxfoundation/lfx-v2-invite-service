@@ -14,19 +14,6 @@ env:
   LOG_LEVEL: "info"
 
 nats:
-  stream_project_settings_events:
-    creation: true
-    keep: true
-    name: project-settings-events
-    subjects:
-      - lfx.projects-api.project_settings.updated
-    storage: file
-    retention: limits
-    maxAge: 24h
-    maxBytes: "104857600"
-    maxMsgs: "100000"
-    replicas: 1
-    compression: s2
   stream_invite_requests:
     creation: true
     keep: true

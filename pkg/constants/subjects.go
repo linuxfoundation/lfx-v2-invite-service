@@ -7,13 +7,6 @@ const (
 	// InviteServiceQueue is the NATS queue group name for this service.
 	InviteServiceQueue = "lfx.invite-service.queue"
 
-	// ProjectSettingsUpdatedSubject is the subject published by project-service
-	// when project settings (writers, auditors, etc.) change.
-	ProjectSettingsUpdatedSubject = "lfx.projects-api.project_settings.updated"
-
-	// ProjectGetNameSubject is the subject for request/reply to retrieve a project name.
-	ProjectGetNameSubject = "lfx.projects-api.get_name"
-
 	// InviteCreatedSubject is published when an invite is issued by this service.
 	InviteCreatedSubject = "lfx.invite-service.invite.created"
 
@@ -31,14 +24,6 @@ const (
 	// EmailServiceSendSubject is the NATS request/reply subject for the email service.
 	// The invite service publishes pre-rendered HTML/text email bodies here.
 	EmailServiceSendSubject = "lfx.email-service.send_email"
-
-	// StreamNameProjectSettingsEvents is the JetStream stream that captures project
-	// settings change events for durable delivery to the invite service.
-	StreamNameProjectSettingsEvents = "project-settings-events"
-
-	// ConsumerNameProjectSettingsNotify is the durable JetStream consumer for
-	// sending "you were added" notifications on project settings changes.
-	ConsumerNameProjectSettingsNotify = "invite-service-project-settings-notify"
 
 	// StreamNameInviteRequests is the JetStream stream that captures send-invite
 	// requests published by resource services.

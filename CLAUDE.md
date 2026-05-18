@@ -3,8 +3,8 @@
 ## Project Overview
 
 The LFX V2 Invite Service is a Go microservice in the LFX v2 platform. It handles:
-- **Phase 1**: "You were added" transactional email notifications to existing-LFID users when they are granted project/foundation access
-- **Future**: Invite token issuance (NATS KV), `/invite/:uuid` acceptance endpoint, and acceptance broadcast for non-LFID users
+- **Current**: Receiving `send_invite` requests from resource services via NATS JetStream, rendering the invite email template, and forwarding to the email service for delivery.
+- **Future**: LFID invite token issuance (NATS KV), `/invite/:uuid` acceptance endpoint, and acceptance broadcast for non-LFID users.
 
 ## Key Technologies
 
@@ -26,8 +26,8 @@ cmd/invite-api/
     └── subscriptions.go      # Slice of {name, start func} — for-loop starts all consumers
 
 internal/domain/
-├── model/                    # Pure data: ProjectSettingsUpdatedMessage, AddedUser, Role, etc.
-└── port/                     # Interfaces: EmailSender, ProjectNameReader
+├── model/                    # Pure data: SendInviteRequest, ProjectAddedNotification, Role, etc.
+└── port/                     # Interfaces: EmailSender
 
 internal/service/
 └── notification.go           # Business logic — receives config via NotificationConfig struct
@@ -35,10 +35,9 @@ internal/service/
 internal/infrastructure/
 ├── nats/
 │   ├── client.go             # NATS connection + ConsumeWithJetStream helper
-│   ├── consumer.go           # StartProjectSettingsConsumer (binds durable JetStream consumer)
-│   └── project_reader.go     # GetProjectName via NATS request/reply to project-service
+│   ├── consumer.go           # StartSendInviteConsumer (binds durable JetStream consumer)
+│   └── email_sender.go       # NATSEmailSender — renders template, forwards to email service
 └── smtp/
-    ├── sender.go             # SMTP sender implementing port.EmailSender
     └── templates.go          # HTML + plain-text email templates
 
 pkg/
@@ -88,8 +87,8 @@ Every `.go` file must start with:
 
 | Subject | Direction | Description |
 |---|---|---|
-| `lfx.projects-api.project_settings.updated` | Consumed | Project permission changes |
-| `lfx.projects-api.get_name` | Request/reply | Look up project display name |
+| `lfx.invite-service.send_invite` | Consumed | Resource services publish `SendInviteRequest` payloads here |
+| `lfx.email-service.send_email` | Request/reply | Forward pre-rendered email to the email service for delivery |
 | `lfx.invite-service.invite.created` | Published (future) | Invite issued |
 | `lfx.invite-service.invite.accepted` | Published (future) | Invite accepted |
 | `lfx.invite-service.invite.revoked` | Published (future) | Invite revoked |
@@ -98,12 +97,12 @@ Every `.go` file must start with:
 
 | Stream | Subjects | Owner |
 |---|---|---|
-| `project-settings-events` | `lfx.projects-api.project_settings.updated` | This service (Helm chart) |
+| `invite-requests` | `lfx.invite-service.send_invite` | This service (Helm chart) |
 
 ## Related Services
 
 | Service | Relationship |
 |---|---|
-| `lfx-v2-project-service` | Publishes `project_settings.updated`; answers `get_name` requests |
-| `lfx-v2-auth-service` | Pattern reference for SMTP sender implementation |
+| `lfx-v2-email-service` | Handles SMTP delivery; this service forwards pre-rendered email bodies to it |
+| `lfx-v2-project-service` | Example resource service that will publish `send_invite` requests |
 | `lfx-v2-committee-service` | Pattern reference for JetStream consumer and service structure |

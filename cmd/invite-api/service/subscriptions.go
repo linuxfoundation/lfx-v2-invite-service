@@ -22,12 +22,6 @@ type subscription struct {
 // To add a new consumer, append an entry here — no other wiring required.
 var subscriptions = []subscription{
 	{
-		name: "project-settings-notify",
-		start: func(ctx context.Context, nc *natsinfra.Client) (func(), error) {
-			return nc.StartProjectSettingsConsumer(ctx, NotificationSvc.HandleProjectSettingsUpdated)
-		},
-	},
-	{
 		name: "send-invite",
 		start: func(ctx context.Context, nc *natsinfra.Client) (func(), error) {
 			return nc.StartSendInviteConsumer(ctx, NotificationSvc.HandleSendInvite)

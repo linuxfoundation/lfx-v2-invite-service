@@ -3,6 +3,16 @@
 
 package model
 
+// Role represents the access level granted to a user.
+type Role string
+
+const (
+	// RoleManage maps to the writers permission set.
+	RoleManage Role = "Manage"
+	// RoleView maps to the auditors permission set.
+	RoleView Role = "View"
+)
+
 // ProjectAddedNotification is the input for sending a "you were added" email.
 type ProjectAddedNotification struct {
 	RecipientName  string

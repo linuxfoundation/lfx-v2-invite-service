@@ -28,11 +28,9 @@ func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
 	NATSClient = nc
 
 	emailSender := natsinfra.NewNATSEmailSender(nc, constants.EmailServiceSendSubject)
-	projectReader := natsinfra.NewProjectNameReader(nc)
 
 	NotificationSvc = service.NewNotificationService(
 		emailSender,
-		projectReader,
 		service.NotificationConfig{
 			LFXBaseURL: cfg.LFXBaseURL,
 		},

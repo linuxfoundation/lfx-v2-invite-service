@@ -6,11 +6,11 @@ This repository contains the source code for the LFX v2 invite service.
 
 The LFX v2 Invite Service handles the following NATS events:
 
-| Subject | Description |
-| ------- | ----------- |
-| `lfx.projects-api.project_settings.updated` | Sends a "you were added" transactional email to existing-LFID users newly granted access to a project or foundation. |
+| Subject | Direction | Description |
+| ------- | --------- | ----------- |
+| `lfx.invite-service.send_invite` | Consumed | Resource services publish a `SendInviteRequest` payload here. The invite service renders the invite email template and forwards the pre-rendered HTML/text to the email service (`lfx.email-service.send_email`) for delivery. |
 
-An HTTP API for creating and managing invites for non-LFID users is coming soon.
+An HTTP API for LFID invite issuance and acceptance is coming soon.
 
 ## File Structure
 
@@ -28,11 +28,11 @@ An HTTP API for creating and managing invites for non-LFID users is coming soon.
 │           └── subscriptions.go     # NATS consumer registration
 ├── internal/
 │   ├── domain/
-│   │   ├── model/                   # Domain models (project events, notifications)
-│   │   └── port/                    # Interface definitions (EmailSender, ProjectNameReader)
+│   │   ├── model/                   # Domain models (invite request, notification, roles)
+│   │   └── port/                    # Interface definitions (EmailSender)
 │   ├── infrastructure/
-│   │   ├── nats/                    # NATS client, JetStream consumer, project name lookup
-│   │   └── smtp/                    # SMTP email sender + HTML/plain-text templates
+│   │   ├── nats/                    # NATS client, JetStream consumer, NATSEmailSender
+│   │   └── smtp/                    # HTML/plain-text email templates
 │   └── service/                     # Business logic (NotificationService)
 └── pkg/
     ├── constants/                   # NATS subjects, env var keys, email defaults
@@ -43,9 +43,9 @@ An HTTP API for creating and managing invites for non-LFID users is coming soon.
 
 ## Key Design Decisions
 
-- **No HTTP API yet** — the service is currently a pure NATS subscriber. An HTTP server will be added when the invite management API is needed.
-- **JetStream for durability** — the service creates its own `project-settings-events` stream so notifications are not lost if the service is temporarily down.
-- **Event-driven, no source service changes** — project-service already publishes `project_settings.updated`; no modifications to upstream services are required.
+- **No HTTP API yet** — the service is currently a pure NATS subscriber. An HTTP server will be added when the LFID invite management API is needed.
+- **JetStream for durability** — the service owns the `invite-requests` stream; messages are not lost if the service is temporarily down.
+- **Template ownership** — the invite service owns and renders the email template; the email service (`lfx.email-service.send_email`) handles SMTP delivery. Callers publish a `SendInviteRequest` with structured fields — no pre-rendered HTML required from them.
 - **Config injected via struct** — all env vars are read in `cmd/invite-api/service/config.go` and passed into service constructors; no `os.Getenv` calls in business logic.
 
 ## Environment Variables
@@ -53,10 +53,6 @@ An HTTP API for creating and managing invites for non-LFID users is coming soon.
 | Variable            | Default                                            | Description                        |
 | ------------------- | -------------------------------------------------- | ---------------------------------- |
 | `NATS_URL`          | `nats://lfx-platform-nats.lfx.svc.cluster.local:4222` | NATS server URL              |
-| `EMAIL_SMTP_HOST`   | `lfx-platform-mailpit-smtp.lfx.svc.cluster.local` | SMTP server host                   |
-| `EMAIL_SMTP_PORT`   | `25`                                               | SMTP server port                   |
-| `EMAIL_SMTP_USERNAME` | _(empty)_                                        | SMTP username (optional)           |
-| `EMAIL_SMTP_PASSWORD` | _(empty)_                                        | SMTP password (optional)           |
 | `LFX_BASE_URL`      | `https://lfx.linuxfoundation.org`                  | Base URL for deep links in emails  |
 | `LOG_LEVEL`         | `debug`                                            | Log level: debug, info, warn       |
 | `OTEL_SERVICE_NAME` | `lfx-v2-invite-service`                            | OpenTelemetry service name         |
