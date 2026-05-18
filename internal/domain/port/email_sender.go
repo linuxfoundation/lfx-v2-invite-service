@@ -11,5 +11,5 @@ import (
 
 // EmailSender sends transactional notification emails.
 type EmailSender interface {
-	SendProjectAddedNotification(ctx context.Context, n *model.ProjectAddedNotification) error
+	SendNotification(ctx context.Context, req *model.SendInviteRequest) error
 }

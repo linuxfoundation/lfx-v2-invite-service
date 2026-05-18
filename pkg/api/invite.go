@@ -30,8 +30,8 @@ type SendInviteRequest struct {
 	RecipientEmail string `json:"recipient_email"`
 	RecipientName  string `json:"recipient_name"`
 	InviterName    string `json:"inviter_name,omitempty"`
-	ProjectUID     string `json:"project_uid"`
-	ProjectName    string `json:"project_name"`
+	ResourceUID    string `json:"resource_uid"`
+	ResourceName   string `json:"resource_name"`
 	Role           string `json:"role"`
 	DeepLinkURL    string `json:"deep_link_url,omitempty"`
 }

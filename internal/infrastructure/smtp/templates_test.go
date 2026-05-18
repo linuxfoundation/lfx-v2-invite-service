@@ -10,55 +10,54 @@ import (
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 )
 
-func baseNotification() *model.ProjectAddedNotification {
-	return &model.ProjectAddedNotification{
+func baseRequest() *model.SendInviteRequest {
+	return &model.SendInviteRequest{
 		RecipientName:  "Alice",
 		RecipientEmail: "alice@example.com",
-		ProjectUID:     "proj-123",
-		ProjectName:    "My Project",
-		Role:           model.RoleManage,
-		DeepLinkURL:    "https://lfx.example.com/projects/proj-123",
+		ResourceUID:    "res-123",
+		ResourceName:   "My Project",
+		Role:           string(model.RoleManage),
+		DeepLinkURL:    "https://lfx.example.com/resources/res-123",
 	}
 }
 
-func TestRenderProjectAddedHTML_ContainsProjectName(t *testing.T) {
-	n := baseNotification()
-	out := RenderProjectAddedHTML(n)
-	if !strings.Contains(out, n.ProjectName) {
-		t.Errorf("HTML output missing project name %q", n.ProjectName)
+func TestRenderInviteHTML_ContainsResourceName(t *testing.T) {
+	req := baseRequest()
+	out := RenderInviteHTML(req)
+	if !strings.Contains(out, req.ResourceName) {
+		t.Errorf("HTML output missing resource name %q", req.ResourceName)
 	}
 }
 
-func TestRenderProjectAddedHTML_ContainsRecipientName(t *testing.T) {
-	n := baseNotification()
-	out := RenderProjectAddedHTML(n)
-	if !strings.Contains(out, n.RecipientName) {
-		t.Errorf("HTML output missing recipient name %q", n.RecipientName)
+func TestRenderInviteHTML_ContainsRecipientName(t *testing.T) {
+	req := baseRequest()
+	out := RenderInviteHTML(req)
+	if !strings.Contains(out, req.RecipientName) {
+		t.Errorf("HTML output missing recipient name %q", req.RecipientName)
 	}
 }
 
-func TestRenderProjectAddedHTML_ContainsDeepLink(t *testing.T) {
-	n := baseNotification()
-	out := RenderProjectAddedHTML(n)
-	if !strings.Contains(out, n.DeepLinkURL) {
-		t.Errorf("HTML output missing deep link %q", n.DeepLinkURL)
+func TestRenderInviteHTML_ContainsDeepLink(t *testing.T) {
+	req := baseRequest()
+	out := RenderInviteHTML(req)
+	if !strings.Contains(out, req.DeepLinkURL) {
+		t.Errorf("HTML output missing deep link %q", req.DeepLinkURL)
 	}
 }
 
-func TestRenderProjectAddedHTML_WithInviter(t *testing.T) {
-	n := baseNotification()
-	n.InviterName = "Bob"
-	out := RenderProjectAddedHTML(n)
+func TestRenderInviteHTML_WithInviter(t *testing.T) {
+	req := baseRequest()
+	req.InviterName = "Bob"
+	out := RenderInviteHTML(req)
 	if !strings.Contains(out, "Bob") {
 		t.Errorf("HTML output missing inviter name %q", "Bob")
 	}
 }
 
-func TestRenderProjectAddedHTML_WithoutInviter(t *testing.T) {
-	n := baseNotification()
-	n.InviterName = ""
-	out := RenderProjectAddedHTML(n)
-	// The no-inviter branch should render generic text, not include an empty name.
+func TestRenderInviteHTML_WithoutInviter(t *testing.T) {
+	req := baseRequest()
+	req.InviterName = ""
+	out := RenderInviteHTML(req)
 	if strings.Contains(out, "has added you") && strings.Contains(out, " <strong></strong>") {
 		t.Error("HTML output should not render empty inviter name")
 	}
@@ -67,68 +66,68 @@ func TestRenderProjectAddedHTML_WithoutInviter(t *testing.T) {
 	}
 }
 
-func TestRenderProjectAddedHTML_EscapesSpecialCharacters(t *testing.T) {
-	n := baseNotification()
-	n.ProjectName = "<script>alert('xss')</script>"
-	out := RenderProjectAddedHTML(n)
+func TestRenderInviteHTML_EscapesSpecialCharacters(t *testing.T) {
+	req := baseRequest()
+	req.ResourceName = "<script>alert('xss')</script>"
+	out := RenderInviteHTML(req)
 	if strings.Contains(out, "<script>") {
-		t.Error("HTML output must escape project name containing script tags")
+		t.Error("HTML output must escape resource name containing script tags")
 	}
 }
 
-func TestRenderProjectAddedPlain_ContainsProjectName(t *testing.T) {
-	n := baseNotification()
-	out := RenderProjectAddedPlain(n)
-	if !strings.Contains(out, n.ProjectName) {
-		t.Errorf("plain text output missing project name %q", n.ProjectName)
+func TestRenderInvitePlain_ContainsResourceName(t *testing.T) {
+	req := baseRequest()
+	out := RenderInvitePlain(req)
+	if !strings.Contains(out, req.ResourceName) {
+		t.Errorf("plain text output missing resource name %q", req.ResourceName)
 	}
 }
 
-func TestRenderProjectAddedPlain_ContainsDeepLink(t *testing.T) {
-	n := baseNotification()
-	out := RenderProjectAddedPlain(n)
-	if !strings.Contains(out, n.DeepLinkURL) {
-		t.Errorf("plain text output missing deep link %q", n.DeepLinkURL)
+func TestRenderInvitePlain_ContainsDeepLink(t *testing.T) {
+	req := baseRequest()
+	out := RenderInvitePlain(req)
+	if !strings.Contains(out, req.DeepLinkURL) {
+		t.Errorf("plain text output missing deep link %q", req.DeepLinkURL)
 	}
 }
 
-func TestRenderProjectAddedPlain_ContainsRecipientName(t *testing.T) {
-	n := baseNotification()
-	out := RenderProjectAddedPlain(n)
-	if !strings.Contains(out, n.RecipientName) {
-		t.Errorf("plain text output missing recipient name %q", n.RecipientName)
+func TestRenderInvitePlain_ContainsRecipientName(t *testing.T) {
+	req := baseRequest()
+	out := RenderInvitePlain(req)
+	if !strings.Contains(out, req.RecipientName) {
+		t.Errorf("plain text output missing recipient name %q", req.RecipientName)
 	}
 }
 
-func TestRenderProjectAddedPlain_WithInviter(t *testing.T) {
-	n := baseNotification()
-	n.InviterName = "Bob"
-	out := RenderProjectAddedPlain(n)
+func TestRenderInvitePlain_WithInviter(t *testing.T) {
+	req := baseRequest()
+	req.InviterName = "Bob"
+	out := RenderInvitePlain(req)
 	if !strings.Contains(out, "Bob has added you") {
 		t.Errorf("plain text output missing inviter line, got:\n%s", out)
 	}
 }
 
-func TestRenderProjectAddedPlain_WithoutInviter(t *testing.T) {
-	n := baseNotification()
-	n.InviterName = ""
-	out := RenderProjectAddedPlain(n)
+func TestRenderInvitePlain_WithoutInviter(t *testing.T) {
+	req := baseRequest()
+	req.InviterName = ""
+	out := RenderInvitePlain(req)
 	if !strings.Contains(out, "You have been added to") {
 		t.Errorf("plain text output missing generic added line, got:\n%s", out)
 	}
 }
 
-func TestRenderProjectAddedPlain_ContainsRole(t *testing.T) {
-	n := baseNotification()
-	out := RenderProjectAddedPlain(n)
-	if !strings.Contains(out, string(n.Role)) {
-		t.Errorf("plain text output missing role %q", n.Role)
+func TestRenderInvitePlain_ContainsRole(t *testing.T) {
+	req := baseRequest()
+	out := RenderInvitePlain(req)
+	if !strings.Contains(out, req.Role) {
+		t.Errorf("plain text output missing role %q", req.Role)
 	}
 }
 
-func TestRenderProjectAddedPlain_ContainsLFXSignature(t *testing.T) {
-	n := baseNotification()
-	out := RenderProjectAddedPlain(n)
+func TestRenderInvitePlain_ContainsLFXSignature(t *testing.T) {
+	req := baseRequest()
+	out := RenderInvitePlain(req)
 	if !strings.Contains(out, "The LFX Team") {
 		t.Error("plain text output missing LFX Team signature")
 	}

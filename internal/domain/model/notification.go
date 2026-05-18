@@ -13,24 +13,13 @@ const (
 	RoleView Role = "View"
 )
 
-// ProjectAddedNotification is the input for sending a "you were added" email.
-type ProjectAddedNotification struct {
-	RecipientName  string
-	RecipientEmail string
-	InviterName    string
-	ProjectUID     string
-	ProjectName    string
-	Role           Role
-	DeepLinkURL    string
-}
-
 // DeliveryState indicates the outcome of an attempted email send.
 type DeliveryState string
 
 const (
-	// DeliveryStateSent means the SMTP send succeeded.
+	// DeliveryStateSent means the send succeeded.
 	DeliveryStateSent DeliveryState = "sent"
-	// DeliveryStateFailed means the SMTP send failed.
+	// DeliveryStateFailed means the send failed.
 	DeliveryStateFailed DeliveryState = "failed"
 	// DeliveryStateSkipped means the send was intentionally skipped (e.g., no email address).
 	DeliveryStateSkipped DeliveryState = "skipped"
@@ -38,7 +27,7 @@ const (
 
 // NotificationAuditEntry records the outcome of a notification attempt.
 type NotificationAuditEntry struct {
-	ProjectUID     string
+	ResourceUID    string
 	RecipientLFID  string
 	RecipientEmail string
 	Role           Role

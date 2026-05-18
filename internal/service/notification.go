@@ -36,7 +36,7 @@ func NewNotificationService(email port.EmailSender, cfg NotificationConfig) *Not
 func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.SendInviteRequest) error {
 	if req.RecipientEmail == "" {
 		slog.WarnContext(ctx, "send_invite request has no recipient email, skipping",
-			"project_uid", req.ProjectUID,
+			"resource_uid", req.ResourceUID,
 		)
 		return nil
 	}
@@ -44,11 +44,11 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	role := model.Role(req.Role)
 	if role != model.RoleManage && role != model.RoleView {
 		slog.WarnContext(ctx, "send_invite request has unrecognised role, skipping",
-			"project_uid", req.ProjectUID,
+			"resource_uid", req.ResourceUID,
 			"role", req.Role,
 		)
 		s.auditNotification(ctx, &model.NotificationAuditEntry{
-			ProjectUID:     req.ProjectUID,
+			ResourceUID:    req.ResourceUID,
 			RecipientEmail: req.RecipientEmail,
 			Role:           role,
 			DeliveryState:  model.DeliveryStateSkipped,
@@ -57,38 +57,28 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		return nil
 	}
 
-	n := &model.ProjectAddedNotification{
-		RecipientName:  req.RecipientName,
-		RecipientEmail: req.RecipientEmail,
-		InviterName:    req.InviterName,
-		ProjectUID:     req.ProjectUID,
-		ProjectName:    req.ProjectName,
-		Role:           role,
-		DeepLinkURL:    req.DeepLinkURL,
-	}
-
-	if err := s.emailSender.SendProjectAddedNotification(ctx, n); err != nil {
+	if err := s.emailSender.SendNotification(ctx, req); err != nil {
 		slog.ErrorContext(ctx, "failed to send invite notification",
-			"project_uid", req.ProjectUID,
+			"resource_uid", req.ResourceUID,
 			"recipient_email", req.RecipientEmail,
 			"error", err,
 		)
 		s.auditNotification(ctx, &model.NotificationAuditEntry{
-			ProjectUID:     req.ProjectUID,
+			ResourceUID:    req.ResourceUID,
 			RecipientEmail: req.RecipientEmail,
 			Role:           role,
 			DeliveryState:  model.DeliveryStateFailed,
 			ErrorMessage:   err.Error(),
 		})
-		return fmt.Errorf("send invite notification for project %s: %w", req.ProjectUID, err)
+		return fmt.Errorf("send invite notification for resource %s: %w", req.ResourceUID, err)
 	}
 
 	slog.InfoContext(ctx, "invite notification sent",
-		"project_uid", req.ProjectUID,
+		"resource_uid", req.ResourceUID,
 		"recipient_email", req.RecipientEmail,
 	)
 	s.auditNotification(ctx, &model.NotificationAuditEntry{
-		ProjectUID:     req.ProjectUID,
+		ResourceUID:    req.ResourceUID,
 		RecipientEmail: req.RecipientEmail,
 		Role:           role,
 		DeliveryState:  model.DeliveryStateSent,
@@ -100,7 +90,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 // log line; a persistent audit store will be wired in a later ticket.
 func (s *NotificationService) auditNotification(ctx context.Context, entry *model.NotificationAuditEntry) {
 	slog.InfoContext(ctx, "notification_audit",
-		"project_uid", entry.ProjectUID,
+		"resource_uid", entry.ResourceUID,
 		"recipient_lfid", entry.RecipientLFID,
 		"recipient_email", entry.RecipientEmail,
 		"role", entry.Role,

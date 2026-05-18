@@ -45,17 +45,17 @@ type sendEmailErrorResponse struct {
 	Error string `json:"error"`
 }
 
-// SendProjectAddedNotification renders the invite template and publishes to the email
-// service via NATS request/reply. An empty reply means success.
-func (s *NATSEmailSender) SendProjectAddedNotification(ctx context.Context, n *model.ProjectAddedNotification) error {
-	req := sendEmailRequest{
-		To:      n.RecipientEmail,
-		Subject: fmt.Sprintf("You've been added to %s", n.ProjectName),
-		HTML:    smtptmpl.RenderProjectAddedHTML(n),
-		Text:    smtptmpl.RenderProjectAddedPlain(n),
+// SendNotification renders the invite template and publishes to the email service
+// via NATS request/reply. An empty reply means success.
+func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendInviteRequest) error {
+	envelope := sendEmailRequest{
+		To:      req.RecipientEmail,
+		Subject: fmt.Sprintf("You've been added to %s", req.ResourceName),
+		HTML:    smtptmpl.RenderInviteHTML(req),
+		Text:    smtptmpl.RenderInvitePlain(req),
 	}
 
-	data, err := json.Marshal(req)
+	data, err := json.Marshal(envelope)
 	if err != nil {
 		return pkgerrors.NewUnexpected("failed to marshal email request", err)
 	}
@@ -73,8 +73,8 @@ func (s *NATSEmailSender) SendProjectAddedNotification(ctx context.Context, n *m
 
 	if len(reply) == 0 {
 		slog.DebugContext(ctx, "email service accepted message",
-			"recipient", n.RecipientEmail,
-			"project_uid", n.ProjectUID,
+			"recipient", req.RecipientEmail,
+			"resource_uid", req.ResourceUID,
 		)
 		return nil
 	}

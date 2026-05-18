@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	testBaseURL     = "https://lfx.example.com"
-	testProjectUID  = "proj-abc123"
-	testProjectName = "Test Project"
+	testBaseURL      = "https://lfx.example.com"
+	testResourceUID  = "res-abc123"
+	testResourceName = "Test Project"
 )
 
 func newService(email *mocks.EmailSender) *NotificationService {
@@ -27,10 +27,10 @@ func baseInviteRequest() *model.SendInviteRequest {
 		RecipientEmail: "alice@example.com",
 		RecipientName:  "Alice",
 		InviterName:    "Bob",
-		ProjectUID:     testProjectUID,
-		ProjectName:    testProjectName,
+		ResourceUID:    testResourceUID,
+		ResourceName:   testResourceName,
 		Role:           string(model.RoleManage),
-		DeepLinkURL:    testBaseURL + "/projects/" + testProjectUID,
+		DeepLinkURL:    testBaseURL + "/resources/" + testResourceUID,
 	}
 }
 
@@ -52,10 +52,10 @@ func TestHandleSendInvite_HappyPath(t *testing.T) {
 	if n.InviterName != req.InviterName {
 		t.Errorf("inviter name: got %q, want %q", n.InviterName, req.InviterName)
 	}
-	if n.ProjectName != req.ProjectName {
-		t.Errorf("project name: got %q, want %q", n.ProjectName, req.ProjectName)
+	if n.ResourceName != req.ResourceName {
+		t.Errorf("resource name: got %q, want %q", n.ResourceName, req.ResourceName)
 	}
-	if string(n.Role) != req.Role {
+	if n.Role != req.Role {
 		t.Errorf("role: got %q, want %q", n.Role, req.Role)
 	}
 }
@@ -77,7 +77,7 @@ func TestHandleSendInvite_MissingRecipientEmail_Skips(t *testing.T) {
 func TestHandleSendInvite_EmailSendError_Propagates(t *testing.T) {
 	sendErr := errors.New("email service unavailable")
 	email := &mocks.EmailSender{
-		SendFunc: func(_ context.Context, _ *model.ProjectAddedNotification) error {
+		SendFunc: func(_ context.Context, _ *model.SendInviteRequest) error {
 			return sendErr
 		},
 	}
@@ -135,7 +135,7 @@ func TestHandleSendInvite_ViewRole_Accepted(t *testing.T) {
 	if len(email.Calls) != 1 {
 		t.Fatalf("expected 1 email for View role, got %d", len(email.Calls))
 	}
-	if email.Calls[0].Role != model.RoleView {
+	if email.Calls[0].Role != string(model.RoleView) {
 		t.Errorf("role: got %q, want %q", email.Calls[0].Role, model.RoleView)
 	}
 }
