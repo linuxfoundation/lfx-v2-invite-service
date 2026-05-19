@@ -62,7 +62,13 @@ func (c *Client) StartSendInviteConsumer(
 		}
 		if err := msg.Respond(data); err != nil {
 			slog.ErrorContext(ctx, "failed to send send_invite reply", "error", err)
+			return
 		}
+		slog.InfoContext(ctx, "send_invite reply sent",
+			"resource_uid", req.ResourceUID,
+			"invite_uid", resp.InviteUID,
+			"error", resp.Error,
+		)
 	})
 	if err != nil {
 		return nil, newServiceUnavailable("failed to subscribe to send_invite subject", err)
