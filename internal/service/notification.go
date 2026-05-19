@@ -45,26 +45,12 @@ func NewNotificationService(email port.EmailSender, linkGen LinkGenerator, cfg N
 // caller can store it. Returns an error if the email could not be sent.
 func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.SendInviteRequest) (inviteUID string, err error) {
 	if req.RecipientEmail == "" {
-		slog.WarnContext(ctx, "send_invite request has no recipient email, skipping",
-			"resource_uid", req.ResourceUID,
-		)
-		return "", nil
+		return "", fmt.Errorf("send_invite request for resource %s has no recipient email", req.ResourceUID)
 	}
 
 	role := model.Role(req.Role)
 	if role != model.RoleManage && role != model.RoleView {
-		slog.WarnContext(ctx, "send_invite request has unrecognised role, skipping",
-			"resource_uid", req.ResourceUID,
-			"role", req.Role,
-		)
-		s.auditNotification(ctx, &model.NotificationAuditEntry{
-			ResourceUID:    req.ResourceUID,
-			RecipientEmail: req.RecipientEmail,
-			Role:           role,
-			DeliveryState:  model.DeliveryStateSkipped,
-			ErrorMessage:   "unrecognised role value: " + req.Role,
-		})
-		return "", nil
+		return "", fmt.Errorf("send_invite request for resource %s has unrecognised role %q", req.ResourceUID, req.Role)
 	}
 
 	// Determine destination URL — use DefaultReturnURL as fallback when not supplied.

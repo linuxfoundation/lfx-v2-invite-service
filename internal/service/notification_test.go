@@ -71,18 +71,15 @@ func TestHandleSendInvite_HappyPath(t *testing.T) {
 	}
 }
 
-func TestHandleSendInvite_MissingRecipientEmail_Skips(t *testing.T) {
+func TestHandleSendInvite_MissingRecipientEmail_ReturnsError(t *testing.T) {
 	email := &mocks.EmailSender{}
 	svc := newService(email)
 
 	req := baseInviteRequest()
 	req.RecipientEmail = ""
-	uid, err := svc.HandleSendInvite(context.Background(), req)
-	if err != nil {
-		t.Fatalf("expected nil error for missing email, got %v", err)
-	}
-	if uid != "" {
-		t.Errorf("expected empty invite_uid when skipped, got %q", uid)
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for missing recipient email, got nil")
 	}
 	if len(email.Calls) != 0 {
 		t.Error("expected no email sent when recipient email is empty")
@@ -124,18 +121,15 @@ func TestHandleSendInvite_NoInviter(t *testing.T) {
 	}
 }
 
-func TestHandleSendInvite_UnrecognisedRole_Skips(t *testing.T) {
+func TestHandleSendInvite_UnrecognisedRole_ReturnsError(t *testing.T) {
 	email := &mocks.EmailSender{}
 	svc := newService(email)
 
 	req := baseInviteRequest()
 	req.Role = "superadmin"
-	uid, err := svc.HandleSendInvite(context.Background(), req)
-	if err != nil {
-		t.Fatalf("expected nil error for unrecognised role, got %v", err)
-	}
-	if uid != "" {
-		t.Errorf("expected empty invite_uid when skipped, got %q", uid)
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for unrecognised role, got nil")
 	}
 	if len(email.Calls) != 0 {
 		t.Error("expected no email sent for unrecognised role")
