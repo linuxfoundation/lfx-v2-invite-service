@@ -19,7 +19,7 @@ type LinkGenerator interface {
 
 // NotificationConfig holds configuration for the NotificationService.
 type NotificationConfig struct {
-	LFXBaseURL string
+	DefaultReturnURL string
 }
 
 // NotificationService dispatches invite notification emails via the email service.
@@ -64,10 +64,10 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		return nil
 	}
 
-	// Determine destination URL — use LFXBaseURL as fallback when not supplied.
-	destURL := req.DeepLinkURL
-	if destURL == "" && s.config.LFXBaseURL != "" {
-		destURL = s.config.LFXBaseURL
+	// Determine destination URL — use DefaultReturnURL as fallback when not supplied.
+	destURL := req.ReturnURL
+	if destURL == "" && s.config.DefaultReturnURL != "" {
+		destURL = s.config.DefaultReturnURL
 	}
 
 	// Generate a signed JWT invite link wrapping the destination URL.
@@ -82,7 +82,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 
 	// Shallow-copy the request so we don't mutate the caller's struct.
 	reqWithLink := *req
-	reqWithLink.DeepLinkURL = inviteLink
+	reqWithLink.ReturnURL = inviteLink
 	req = &reqWithLink
 
 	if err := s.emailSender.SendNotification(ctx, req); err != nil {

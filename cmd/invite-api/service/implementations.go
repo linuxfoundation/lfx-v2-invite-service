@@ -40,7 +40,7 @@ func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
 		emailSender,
 		linkGen,
 		service.NotificationConfig{
-			LFXBaseURL: cfg.LFXBaseURL,
+			DefaultReturnURL: cfg.DefaultReturnURL,
 		},
 	)
 

@@ -26,7 +26,7 @@ func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL string) (str
 }
 
 func newService(email *mocks.EmailSender) *NotificationService {
-	return NewNotificationService(email, &noopLinkGenerator{}, NotificationConfig{LFXBaseURL: testBaseURL})
+	return NewNotificationService(email, &noopLinkGenerator{}, NotificationConfig{DefaultReturnURL: testBaseURL})
 }
 
 func baseInviteRequest() *model.SendInviteRequest {
@@ -37,7 +37,7 @@ func baseInviteRequest() *model.SendInviteRequest {
 		ResourceUID:    testResourceUID,
 		ResourceName:   testResourceName,
 		Role:           string(model.RoleManage),
-		DeepLinkURL:    testBaseURL + "/resources/" + testResourceUID,
+		ReturnURL:    testBaseURL + "/resources/" + testResourceUID,
 	}
 }
 

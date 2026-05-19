@@ -8,7 +8,7 @@ import "os"
 // AppConfig holds all runtime configuration read from environment variables.
 type AppConfig struct {
 	NATSURL            string
-	LFXBaseURL         string
+	DefaultReturnURL         string
 	InviteJWTSecret    string
 	SelfServeBaseURL   string
 }
@@ -18,11 +18,6 @@ func AppConfigFromEnv() AppConfig {
 	natsURL := os.Getenv("NATS_URL")
 	if natsURL == "" {
 		natsURL = "nats://lfx-platform-nats.lfx.svc.cluster.local:4222"
-	}
-
-	lfxBaseURL := os.Getenv("LFX_BASE_URL")
-	if lfxBaseURL == "" {
-		lfxBaseURL = "https://lfx.linuxfoundation.org"
 	}
 
 	selfServeBaseURL := os.Getenv("LFX_SELF_SERVE_BASE_URL")
@@ -37,9 +32,14 @@ func AppConfigFromEnv() AppConfig {
 		}
 	}
 
+	defaultReturnURL := os.Getenv("DEFAULT_INVITE_LINK_RETURN_URL")
+	if defaultReturnURL == "" {
+		defaultReturnURL = selfServeBaseURL
+	}
+
 	return AppConfig{
 		NATSURL:          natsURL,
-		LFXBaseURL:       lfxBaseURL,
+		DefaultReturnURL: defaultReturnURL,
 		InviteJWTSecret:  os.Getenv("INVITE_JWT_SECRET"),
 		SelfServeBaseURL: selfServeBaseURL,
 	}

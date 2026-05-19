@@ -18,7 +18,7 @@ func baseRequest() *model.SendInviteRequest {
 		ResourceUID:    "res-123",
 		ResourceName:   "My Project",
 		Role:           string(model.RoleManage),
-		DeepLinkURL:    "https://lfx.example.com/resources/res-123",
+		ReturnURL:    "https://lfx.example.com/resources/res-123",
 		OrgName:        "Linux Foundation",
 	}
 }
@@ -88,8 +88,8 @@ func TestRenderInviteHTML_ContainsResourceName(t *testing.T) {
 func TestRenderInviteHTML_ContainsDeepLink(t *testing.T) {
 	req := baseRequest()
 	out := RenderInviteHTML(req)
-	if !strings.Contains(out, req.DeepLinkURL) {
-		t.Errorf("HTML missing deep link %q", req.DeepLinkURL)
+	if !strings.Contains(out, req.ReturnURL) {
+		t.Errorf("HTML missing deep link %q", req.ReturnURL)
 	}
 }
 
@@ -176,8 +176,8 @@ func TestRenderInvitePlain_ContainsResourceName(t *testing.T) {
 func TestRenderInvitePlain_ContainsDeepLink(t *testing.T) {
 	req := baseRequest()
 	out := RenderInvitePlain(req)
-	if !strings.Contains(out, req.DeepLinkURL) {
-		t.Errorf("plain text missing deep link %q", req.DeepLinkURL)
+	if !strings.Contains(out, req.ReturnURL) {
+		t.Errorf("plain text missing deep link %q", req.ReturnURL)
 	}
 }
 

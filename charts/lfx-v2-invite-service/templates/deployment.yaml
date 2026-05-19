@@ -35,13 +35,10 @@ spec:
           env:
             - name: NATS_URL
               value: {{ .Values.nats.url }}
-            - name: LFX_BASE_URL
-              value: {{ .Values.app.lfxBaseURL | quote }}
-            {{- $selfServeBaseURL := .Values.app.selfServeBaseURL | toString | trim }}
-            {{- if ne $selfServeBaseURL "" }}
             - name: LFX_SELF_SERVE_BASE_URL
-              value: {{ $selfServeBaseURL | quote }}
-            {{- end }}
+              value: {{ .Values.app.selfServeBaseURL | quote }}
+            - name: DEFAULT_INVITE_LINK_RETURN_URL
+              value: {{ .Values.app.defaultReturnURL | quote }}
             {{- if .Values.app.inviteJWTSecret }}
             - name: INVITE_JWT_SECRET
               value: {{ .Values.app.inviteJWTSecret | quote }}

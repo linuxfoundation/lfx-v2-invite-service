@@ -11,7 +11,7 @@
   {{else}}
   <p>You have been invited to join <strong>{{.ResourceName}}</strong> on LFX with the <strong>{{.Role}}</strong> role.</p>
   {{end}}
-  <p>You&#39;ll need an LFX account to access the group.</p>
+  <p>You&#39;ll need an LFX account to access the {{.ResourceType}}.</p>
   <p><strong>Getting started takes about a minute:</strong></p>
   <ol style="line-height:1.8">
     <li>Click the button below to accept the invitation</li>
@@ -19,7 +19,7 @@
     <li>You&#39;ll be taken straight to the <strong>{{.ResourceName}}</strong> dashboard</li>
   </ol>
   <p style="margin-top:32px">
-    <a href="{{.DeepLinkURL}}"
+    <a href="{{.ReturnURL}}"
        style="background:#0066cc;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">
       Accept invitation &amp; create account
     </a>

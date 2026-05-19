@@ -51,11 +51,14 @@ service:
 app:
   # logLevel is the log level (debug, info, warn, error)
   logLevel: debug
-  # lfxBaseURL is the base URL for LFX deep links included in invite emails
-  lfxBaseURL: "https://lfx.linuxfoundation.org"
+  # defaultReturnURL overrides DEFAULT_INVITE_LINK_RETURN_URL — the URL users land on
+  # after accepting an invite when the caller omits return_url.
+  # Leave empty to default to selfServeBaseURL (auto-selected by LFX_ENVIRONMENT).
+  defaultReturnURL: ""
 
-  # selfServeBaseURL overrides LFX_SELF_SERVE_BASE_URL for local dev.
-  # Leave empty to rely on LFX_ENVIRONMENT auto-selection (default: app.dev.lfx.dev).
+  # selfServeBaseURL overrides LFX_SELF_SERVE_BASE_URL — the base URL of the invite
+  # acceptance web app. Leave empty to rely on LFX_ENVIRONMENT auto-selection
+  # (default: app.dev.lfx.dev).
   selfServeBaseURL: ""
 
   # inviteJWTSecret is the HMAC-SHA256 signing key for invite tokens (local dev only).

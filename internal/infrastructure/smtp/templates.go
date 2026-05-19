@@ -35,8 +35,9 @@ type inviteEmailData struct {
 	InviterFirstName   string
 	InviterFullName    string
 	ResourceName       string
+	ResourceType       string
 	Role               string
-	DeepLinkURL        string
+	ReturnURL          string
 	OrgName            string
 	HasInviter         bool
 }
@@ -46,13 +47,18 @@ func buildTemplateData(req *model.SendInviteRequest) inviteEmailData {
 	if orgName == "" {
 		orgName = "LFX"
 	}
+	resourceType := req.ResourceType
+	if resourceType == "" {
+		resourceType = "resource"
+	}
 	return inviteEmailData{
 		RecipientFirstName: firstName(req.RecipientName),
 		InviterFirstName:   firstName(req.InviterName),
 		InviterFullName:    req.InviterName,
 		ResourceName:       req.ResourceName,
+		ResourceType:       resourceType,
 		Role:               req.Role,
-		DeepLinkURL:        req.DeepLinkURL,
+		ReturnURL:          req.ReturnURL,
 		OrgName:            orgName,
 		HasInviter:         req.InviterName != "",
 	}
@@ -94,7 +100,7 @@ func RenderInvitePlain(req *model.SendInviteRequest) string {
 	data := buildTemplateData(req)
 	var buf bytes.Buffer
 	if err := plainTmpl.Execute(&buf, data); err != nil {
-		return fmt.Sprintf("You have been invited to join %s.\n\n%s", req.ResourceName, req.DeepLinkURL)
+		return fmt.Sprintf("You have been invited to join %s.\n\n%s", req.ResourceName, req.ReturnURL)
 	}
 	return buf.String()
 }

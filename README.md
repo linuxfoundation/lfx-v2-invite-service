@@ -51,7 +51,7 @@ An HTTP API for LFID invite issuance and acceptance is coming soon.
 | Variable            | Default                                            | Description                        |
 | ------------------- | -------------------------------------------------- | ---------------------------------- |
 | `NATS_URL`              | `nats://lfx-platform-nats.lfx.svc.cluster.local:4222` | NATS server URL                                  |
-| `LFX_BASE_URL`          | `https://lfx.linuxfoundation.org`                  | Fallback deep-link URL when request omits one     |
+| `DEFAULT_INVITE_LINK_RETURN_URL` | auto (falls back to `LFX_SELF_SERVE_BASE_URL`) | Fallback return URL when caller omits `return_url` |
 | `INVITE_JWT_SECRET`     | (required)                                         | HMAC-SHA256 key for signing invite JWTs           |
 | `LFX_SELF_SERVE_BASE_URL` | auto (see `LFX_ENVIRONMENT`)                     | Base URL of the invite acceptance web app         |
 | `LFX_ENVIRONMENT`       | (unset → dev)                                      | Sets self-serve URL default: `prod`, `stg`, or dev |
