@@ -96,34 +96,7 @@ app:
     # Comma-separated list of: "tracecontext", "baggage", "jaeger"
     propagators: "tracecontext,baggage,jaeger"
 
-# nats is the configuration for NATS connectivity and stream management
+# nats is the configuration for NATS connectivity
 nats:
   # url is the URL of the NATS server
   url: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
-
-  # stream_invite_requests configures the JetStream stream that captures
-  # send-invite requests published by resource services
-  stream_invite_requests:
-    # creation controls whether this chart creates/updates the stream
-    creation: true
-    # keep prevents Helm from deleting the stream on chart uninstall
-    keep: true
-    # name is the JetStream stream name
-    name: invite-requests
-    # subjects is the list of NATS subjects captured by this stream
-    subjects:
-      - lfx.invite-service.send_invite
-    # storage is the storage backend: "file" or "memory"
-    storage: file
-    # retention is the retention policy: "limits", "interest", or "workqueue"
-    retention: limits
-    # maxAge is the maximum age of messages before they are removed
-    maxAge: 24h
-    # maxBytes is the maximum total size of the stream in bytes (100 MiB)
-    maxBytes: "104857600"
-    # maxMsgs is the maximum number of messages retained in the stream
-    maxMsgs: "100000"
-    # replicas is the number of stream replicas (set >1 for HA clusters)
-    replicas: 1
-    # compression is the message compression algorithm: "s2" or "none"
-    compression: s2

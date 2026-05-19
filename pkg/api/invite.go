@@ -9,9 +9,9 @@ package api
 
 // Subjects consumed by the invite service.
 const (
-	// SendInviteSubject is published by resource services when a non-LFID user is
-	// added to a resource. The invite service consumes this from the invite-requests
-	// JetStream stream, renders the email template, and forwards to the email service.
+	// SendInviteSubject is used for NATS request/reply by resource services when a
+	// non-LFID user is added to a resource. The invite service renders the email
+	// template, forwards to the email service, and replies with SendInviteResponse.
 	SendInviteSubject = "lfx.invite-service.send_invite"
 )
 

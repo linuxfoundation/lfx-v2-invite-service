@@ -3,13 +3,13 @@
 ## Project Overview
 
 The LFX V2 Invite Service is a Go microservice in the LFX v2 platform. It handles:
-- **Current**: Receiving `send_invite` requests from resource services via NATS JetStream, rendering the invite email template, and forwarding to the email service for delivery.
+- **Current**: Receiving `send_invite` requests from resource services via NATS request/reply, rendering the invite email template, forwarding to the email service for delivery, and returning the invite UUID to the caller.
 - **Future**: LFID invite token issuance (NATS KV), `/invite/:uuid` acceptance endpoint, and acceptance broadcast for non-LFID users.
 
 ## Key Technologies
 
 - **Language**: Go 1.25+
-- **Messaging**: NATS with JetStream for durable event consumption
+- **Messaging**: NATS core (request/reply queue groups)
 - **Email**: SMTP (same Mailpit-backed sender as auth-service in development)
 - **Observability**: OpenTelemetry (traces, metrics, logs) + slog structured logging
 - **Container**: Chainguard distroless images
@@ -34,8 +34,8 @@ internal/service/
 
 internal/infrastructure/
 ├── nats/
-│   ├── client.go             # NATS connection + ConsumeWithJetStream helper
-│   ├── consumer.go           # StartSendInviteConsumer (binds durable JetStream consumer)
+│   ├── client.go             # NATS connection
+│   ├── consumer.go           # StartSendInviteConsumer (queue-group request/reply subscriber)
 │   ├── email_sender.go       # NATSEmailSender — renders template, forwards to email service
 │   └── errors.go             # ServiceUnavailable, Unexpected error types (unexported)
 ├── observability/
@@ -75,7 +75,7 @@ All `os.Getenv` calls belong in `cmd/invite-api/service/config.go` → `AppConfi
 ### Error handling
 - Infrastructure errors → unexported `newServiceUnavailable` / `newUnexpected` in `internal/infrastructure/nats/errors.go`
 - Return errors up; log at the point where you have the most context
-- Malformed NATS payloads: ACK and skip (they will never parse successfully on retry)
+- Malformed NATS payloads: reply with error and discard (they will never parse successfully on retry)
 
 ### Logging
 - Use `slog.DebugContext`, `slog.InfoContext`, `slog.WarnContext`, `slog.ErrorContext`
@@ -93,17 +93,11 @@ Every `.go` file must start with:
 
 | Subject | Direction | Description |
 |---|---|---|
-| `lfx.invite-service.send_invite` | Consumed | Resource services publish `SendInviteRequest` payloads here |
+| `lfx.invite-service.send_invite` | Request/reply | Resource services send `SendInviteRequest`; invite service replies with `SendInviteResponse{InviteUID}` |
 | `lfx.email-service.send_email` | Request/reply | Forward pre-rendered email to the email service for delivery |
 | `lfx.invite-service.invite.created` | Published (future) | Invite issued |
 | `lfx.invite-service.invite.accepted` | Published (future) | Invite accepted |
 | `lfx.invite-service.invite.revoked` | Published (future) | Invite revoked |
-
-## JetStream Streams
-
-| Stream | Subjects | Owner |
-|---|---|---|
-| `invite-requests` | `lfx.invite-service.send_invite` | This service (Helm chart) |
 
 ## Related Services
 
@@ -111,4 +105,4 @@ Every `.go` file must start with:
 |---|---|
 | `lfx-v2-email-service` | Handles SMTP delivery; this service forwards pre-rendered email bodies to it |
 | `lfx-v2-project-service` | Example resource service that will publish `send_invite` requests |
-| `lfx-v2-committee-service` | Pattern reference for JetStream consumer and service structure |
+| `lfx-v2-committee-service` | Example resource service that publishes `send_invite` requests |

@@ -8,7 +8,7 @@ The LFX v2 Invite Service handles the following NATS events:
 
 | Subject | Direction | Description |
 | ------- | --------- | ----------- |
-| `lfx.invite-service.send_invite` | Consumed | Resource services publish a `SendInviteRequest` payload here. The invite service renders the invite email template and forwards the pre-rendered HTML/text to the email service (`lfx.email-service.send_email`) for delivery. |
+| `lfx.invite-service.send_invite` | Request/reply | Resource services send a `SendInviteRequest` and receive a `SendInviteResponse` containing the invite UUID. The invite service renders the invite email template and forwards to the email service (`lfx.email-service.send_email`) for delivery. |
 
 An HTTP API for LFID invite issuance and acceptance is coming soon.
 
@@ -18,7 +18,6 @@ An HTTP API for LFID invite issuance and acceptance is coming soon.
 ├── charts/                          # Helm charts for Kubernetes deployment
 │   └── lfx-v2-invite-service/
 │       └── templates/
-│           └── nats-streams.yaml    # JetStream stream definitions
 ├── cmd/
 │   └── invite-api/                  # Application entry point
 │       ├── main.go
@@ -31,7 +30,7 @@ An HTTP API for LFID invite issuance and acceptance is coming soon.
 │   │   ├── model/                   # Domain models (invite request, notification, roles)
 │   │   └── port/                    # Interface definitions (EmailSender)
 │   ├── infrastructure/
-│   │   ├── nats/                    # NATS client, JetStream consumer, NATSEmailSender, error types
+│   │   ├── nats/                    # NATS client, queue subscriber, NATSEmailSender, error types
 │   │   ├── observability/           # slog setup and OTel SDK bootstrap
 │   │   └── smtp/                    # Template rendering + embedded templates/
 │   └── service/                     # Business logic (NotificationService)
@@ -42,7 +41,6 @@ An HTTP API for LFID invite issuance and acceptance is coming soon.
 ## Key Design Decisions
 
 - **No HTTP API yet** — the service is currently a pure NATS subscriber. An HTTP server will be added when the LFID invite management API is needed.
-- **JetStream for durability** — the service owns the `invite-requests` stream; messages are not lost if the service is temporarily down.
 - **Template ownership** — the invite service owns and renders the email template; the email service (`lfx.email-service.send_email`) handles SMTP delivery. Callers publish a `SendInviteRequest` with structured fields — no pre-rendered HTML required from them.
 - **Config injected via struct** — all env vars are read in `cmd/invite-api/service/config.go` and passed into service constructors; no `os.Getenv` calls in business logic.
 
