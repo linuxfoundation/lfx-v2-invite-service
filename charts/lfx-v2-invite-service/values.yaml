@@ -49,10 +49,12 @@ app:
   # lfxBaseURL is the base URL for LFX deep links included in invite emails
   lfxBaseURL: "https://lfx.linuxfoundation.org"
 
-  # inviteLinkBaseURL is the base URL of the LFX Self-Serve web app used to build
+  # selfServeBaseURL is the base URL of the LFX Self-Serve web app used to build
   # the accept-invite link. The web app validates the token, forces login, broadcasts
   # invite acceptance, and redirects to the destination URL.
-  inviteLinkBaseURL: "https://lfx.linuxfoundation.org"
+  # Overrides LFX_SELF_SERVE_BASE_URL; if unset the service auto-selects based on
+  # LFX_ENVIRONMENT: prod=app.lfx.dev, stg=app.staging.lfx.dev, default=app.dev.lfx.dev
+  selfServeBaseURL: ""
 
   # inviteJWTSecret is the HMAC-SHA256 signing key for invite tokens.
   # In production, inject this via a Kubernetes Secret and extraEnv — do not set here.

@@ -33,7 +33,7 @@ func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
 		return fmt.Errorf("INVITE_JWT_SECRET is required but not set")
 	}
 
-	linkGen := authinfra.NewLinkGenerator([]byte(cfg.InviteJWTSecret), cfg.InviteLinkBaseURL)
+	linkGen := authinfra.NewLinkGenerator([]byte(cfg.InviteJWTSecret), cfg.SelfServeBaseURL)
 	emailSender := natsinfra.NewNATSEmailSender(nc, emailapi.SendEmailSubject)
 
 	NotificationSvc = service.NewNotificationService(
