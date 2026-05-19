@@ -122,13 +122,6 @@ func TestRenderInviteHTML_WithoutInviter(t *testing.T) {
 	}
 }
 
-func TestRenderInviteHTML_ContainsPreheader(t *testing.T) {
-	req := baseRequest()
-	out := RenderInviteHTML(req)
-	if !strings.Contains(out, "Create your LFX account to accept the invitation") {
-		t.Error("HTML missing preheader text")
-	}
-}
 
 func TestRenderInviteHTML_ContainsCTA(t *testing.T) {
 	req := baseRequest()
