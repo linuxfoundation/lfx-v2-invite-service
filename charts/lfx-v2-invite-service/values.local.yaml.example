@@ -92,23 +92,7 @@ app:
     # Comma-separated list of: "tracecontext", "baggage", "jaeger"
     propagators: "tracecontext,baggage,jaeger"
 
-# nats is the configuration for NATS connectivity and stream management
+# nats is the configuration for NATS connectivity
 nats:
   # url is the URL of the NATS server
   url: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
-
-  # stream_invite_requests configures the JetStream stream that captures
-  # send-invite requests published by resource services
-  stream_invite_requests:
-    creation: true
-    keep: true
-    name: invite-requests
-    subjects:
-      - lfx.invite-service.send_invite
-    storage: file
-    retention: limits
-    maxAge: 24h
-    maxBytes: "104857600"
-    maxMsgs: "100000"
-    replicas: 1
-    compression: s2
