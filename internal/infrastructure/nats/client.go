@@ -10,7 +10,6 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-
 )
 
 // Client wraps the NATS connection and provides infrastructure operations.
