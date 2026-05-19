@@ -42,7 +42,8 @@
     {{else}}
     <p>You have been invited to join <strong>{{.ResourceName}}</strong> on LFX with the <strong>{{.Role}}</strong> role.</p>
     {{end}}
-    <p>You&#39;ll need an LFX account to access the {{.ResourceType}}. Getting started takes about a minute:</p>
+    <p>You&#39;ll need an LFX account to access the {{.ResourceType}}.</p>
+    <p>Getting started takes about a minute:</p>
     <ol>
         <li>Click the button below to accept the invitation</li>
         <li>Create your LFX account (or sign in if you have a Linux Foundation ID)</li>
@@ -50,7 +51,7 @@
     </ol>
 
     <!-- djlint:off H021 --><a href="{{.ReturnURL}}" class="btn" style="color:#ffffff!important;">Accept invitation &amp; create account</a><!-- djlint:on H021 -->
-    <p class="btn-note">If the button above doesn't work, paste this into your browser: <a href="{{.ReturnURL}}">{{.ReturnURL}}</a></p>
+    <p class="btn-note">If the button above doesn't work, <a href="{{.ReturnURL}}">click here to accept your invitation</a>.</p>
 
     <p class="signoff">Thanks,<br><strong>The {{.OrgName}} Team</strong></p>
 
