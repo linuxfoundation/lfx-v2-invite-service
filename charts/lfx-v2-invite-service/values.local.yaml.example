@@ -1,0 +1,104 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+
+# Local development overrides — copy this file to values.local.yaml and adjust as needed.
+# values.local.yaml is gitignored; this example file is the committed reference.
+#
+# Usage:
+#   cp values.local.yaml.example values.local.yaml
+#   helm upgrade --install ... -f values.yaml -f values.local.yaml
+
+# image is the configuration for the container image
+image:
+  # repository is the container image repository
+  repository: ghcr.io/linuxfoundation/lfx-v2-invite-service/invite-service
+  # tag is the container image tag — "latest" picks up locally built images
+  tag: "latest"
+  # pullPolicy Never means Kubernetes uses the locally loaded image without pulling
+  pullPolicy: Never
+
+# replicaCount is the number of replicas for the deployment
+replicaCount: 1
+
+# podAnnotations are additional annotations applied to the pod template
+podAnnotations: {}
+
+# podLabels are additional labels applied to the pod template
+podLabels: {}
+
+# podDisruptionBudget configures a PodDisruptionBudget for the deployment.
+# Only one of minAvailable or maxUnavailable may be set.
+podDisruptionBudget:
+  # enabled controls whether a PodDisruptionBudget is created
+  enabled: false
+  # minAvailable: 1
+
+# resources is the configuration for container resource requests and limits
+resources:
+  limits:
+    cpu: 100m
+    memory: 64Mi
+  requests:
+    cpu: 25m
+    memory: 32Mi
+
+# service is the configuration for the Kubernetes Service
+service:
+  # port is the service port (used for future health endpoints)
+  port: 8080
+
+# app is the configuration for the application
+app:
+  # logLevel is the log level (debug, info, warn, error)
+  logLevel: debug
+  # lfxBaseURL is the base URL for LFX deep links included in invite emails
+  lfxBaseURL: "https://lfx.linuxfoundation.org"
+
+  # extraEnv allows injecting additional environment variables into the container.
+  # These are rendered before OTel variables.
+  extraEnv: []
+
+  # otel is the configuration for OpenTelemetry observability
+  otel:
+    # serviceName is the service name for OTel resource identification
+    # (default: "lfx-v2-invite-service")
+    serviceName: ""
+    # protocol specifies the OTLP protocol: "grpc" or "http"
+    protocol: "grpc"
+    # endpoint is the OTLP collector endpoint.
+    # For gRPC: typically "host:4317", for HTTP: typically "host:4318"
+    endpoint: ""
+    # insecure disables TLS — set to "true" for local in-cluster collectors
+    insecure: "false"
+    # tracesExporter specifies the traces exporter: "otlp" or "none"
+    tracesExporter: "none"
+    # tracesSampleRatio specifies the sampling ratio for traces (0.0 to 1.0)
+    tracesSampleRatio: "1.0"
+    # metricsExporter specifies the metrics exporter: "otlp" or "none"
+    metricsExporter: "none"
+    # logsExporter specifies the logs exporter: "otlp" or "none"
+    logsExporter: "none"
+    # propagators specifies the trace context propagators to use.
+    # Comma-separated list of: "tracecontext", "baggage", "jaeger"
+    propagators: "tracecontext,baggage,jaeger"
+
+# nats is the configuration for NATS connectivity and stream management
+nats:
+  # url is the URL of the NATS server
+  url: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
+
+  # stream_invite_requests configures the JetStream stream that captures
+  # send-invite requests published by resource services
+  stream_invite_requests:
+    creation: true
+    keep: true
+    name: invite-requests
+    subjects:
+      - lfx.invite-service.send_invite
+    storage: file
+    retention: limits
+    maxAge: 24h
+    maxBytes: "104857600"
+    maxMsgs: "100000"
+    replicas: 1
+    compression: s2

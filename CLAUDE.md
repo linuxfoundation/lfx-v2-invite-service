@@ -26,7 +26,7 @@ cmd/invite-api/
     └── subscriptions.go      # Slice of {name, start func} — for-loop starts all consumers
 
 internal/domain/
-├── model/                    # Pure data: SendInviteRequest, ProjectAddedNotification, Role, etc.
+├── model/                    # Pure data: SendInviteRequest, Role, DeliveryState, etc.
 └── port/                     # Interfaces: EmailSender
 
 internal/service/
@@ -36,15 +36,21 @@ internal/infrastructure/
 ├── nats/
 │   ├── client.go             # NATS connection + ConsumeWithJetStream helper
 │   ├── consumer.go           # StartSendInviteConsumer (binds durable JetStream consumer)
-│   └── email_sender.go       # NATSEmailSender — renders template, forwards to email service
+│   ├── email_sender.go       # NATSEmailSender — renders template, forwards to email service
+│   └── errors.go             # ServiceUnavailable, Unexpected error types (unexported)
+├── observability/
+│   ├── log.go                # slog + OTel handler init
+│   └── otel.go               # OTel SDK bootstrap
 └── smtp/
-    └── templates.go          # HTML + plain-text email templates
+    ├── templates.go          # Template rendering functions
+    └── templates/            # Embedded template files
+        ├── invite_body.gohtml
+        ├── invite_subject.gotemplate
+        └── invite_text.gotemplate
 
 pkg/
-├── constants/subjects.go     # NATS subjects, env var keys, stream/consumer names
-├── errors/errors.go          # ServiceUnavailable, Unexpected error types
-├── log/log.go                # slog + OTel handler init
-└── utils/otel.go             # OTel SDK bootstrap (copied from committee-service pattern)
+└── api/
+    └── invite.go             # Public contract: NATS subjects, SendInviteRequest, InviteRole
 ```
 
 ## Build Commands
@@ -67,7 +73,7 @@ All `os.Getenv` calls belong in `cmd/invite-api/service/config.go` → `AppConfi
 3. Append to the `subscriptions` slice in `cmd/invite-api/service/subscriptions.go`
 
 ### Error handling
-- Infrastructure errors → `pkg/errors.NewServiceUnavailable` / `pkg/errors.NewUnexpected`
+- Infrastructure errors → unexported `newServiceUnavailable` / `newUnexpected` in `internal/infrastructure/nats/errors.go`
 - Return errors up; log at the point where you have the most context
 - Malformed NATS payloads: ACK and skip (they will never parse successfully on retry)
 

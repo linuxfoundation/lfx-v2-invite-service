@@ -57,6 +57,10 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		return nil
 	}
 
+	if req.DeepLinkURL == "" && s.config.LFXBaseURL != "" {
+		req.DeepLinkURL = s.config.LFXBaseURL
+	}
+
 	if err := s.emailSender.SendNotification(ctx, req); err != nil {
 		slog.ErrorContext(ctx, "failed to send invite notification",
 			"resource_uid", req.ResourceUID,

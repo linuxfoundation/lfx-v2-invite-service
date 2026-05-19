@@ -32,7 +32,6 @@ import (
 const (
 	otelProtocolGRPC = "grpc"
 	otelProtocolHTTP = "http"
-	otelExporterOTLP = "otlp"
 	otelExporterNone = "none"
 )
 
@@ -180,7 +179,7 @@ func SetupOTelSDKWithConfig(ctx context.Context, cfg OTelConfig) (shutdown func(
 		return
 	}
 
-	otel.SetTextMapPropagator(newPropagator(ctx, cfg))
+	otel.SetTextMapPropagator(newPropagator(cfg))
 
 	if cfg.TracesExporter != otelExporterNone {
 		var tracerProvider *trace.TracerProvider
@@ -229,10 +228,10 @@ func newResource(cfg OTelConfig) (*resource.Resource, error) {
 	)
 }
 
-func newPropagator(ctx context.Context, cfg OTelConfig) propagation.TextMapPropagator {
+func newPropagator(cfg OTelConfig) propagation.TextMapPropagator {
 	var propagators []propagation.TextMapPropagator
 
-	for _, p := range strings.Split(cfg.Propagators, ",") {
+	for p := range strings.SplitSeq(cfg.Propagators, ",") {
 		switch strings.TrimSpace(p) {
 		case "tracecontext":
 			propagators = append(propagators, propagation.TraceContext{})

@@ -31,14 +31,12 @@ An HTTP API for LFID invite issuance and acceptance is coming soon.
 │   │   ├── model/                   # Domain models (invite request, notification, roles)
 │   │   └── port/                    # Interface definitions (EmailSender)
 │   ├── infrastructure/
-│   │   ├── nats/                    # NATS client, JetStream consumer, NATSEmailSender
-│   │   └── smtp/                    # HTML/plain-text email templates
+│   │   ├── nats/                    # NATS client, JetStream consumer, NATSEmailSender, error types
+│   │   ├── observability/           # slog setup and OTel SDK bootstrap
+│   │   └── smtp/                    # Template rendering + embedded templates/
 │   └── service/                     # Business logic (NotificationService)
 └── pkg/
-    ├── constants/                   # NATS subjects, env var keys, email defaults
-    ├── errors/                      # Error types
-    ├── log/                         # Structured logging setup (slog + OTel)
-    └── utils/                       # OpenTelemetry SDK bootstrap
+    └── api/                         # Public inter-service contract: subjects, SendInviteRequest, InviteRole
 ```
 
 ## Key Design Decisions
