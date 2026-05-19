@@ -22,4 +22,7 @@ type SendInviteRequest struct {
 	// OrgName is the foundation or project name used in the email signature
 	// ("The X Team"). Defaults to "LFX" when empty.
 	OrgName string `json:"org_name,omitempty"`
+	// ExpirationDays is the number of days the invite token should be valid.
+	// If 0 or omitted, defaults to 7 days.
+	ExpirationDays int `json:"expiration_days,omitempty"`
 }

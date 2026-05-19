@@ -30,7 +30,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		inviteUID, handlerErr := NotificationSvc.HandleSendInvite(ctx, &req)
+		result, handlerErr := NotificationSvc.HandleSendInvite(ctx, &req)
 
 		var resp api.SendInviteResponse
 		if handlerErr != nil {
@@ -40,7 +40,9 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			)
 			resp.Error = handlerErr.Error()
 		} else {
-			resp.InviteUID = inviteUID
+			resp.InviteUID = result.InviteUID
+			resp.RecipientEmail = result.RecipientEmail
+			resp.ExpiresAt = result.ExpiresAt
 		}
 
 		data, marshalErr := json.Marshal(resp)
@@ -56,6 +58,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 		slog.InfoContext(ctx, "send_invite reply sent",
 			"resource_uid", req.ResourceUID,
 			"invite_uid", resp.InviteUID,
+			"expires_at", resp.ExpiresAt,
 			"error", resp.Error,
 		)
 	})

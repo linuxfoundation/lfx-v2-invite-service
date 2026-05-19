@@ -22,7 +22,7 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	role := "Manage"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, inviteUID, err := gen.Generate(recipientEmail, returnURL, resourceUID, role)
+	link, inviteUID, expiresAt, err := gen.Generate(recipientEmail, returnURL, resourceUID, role, 0)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -89,6 +89,47 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	if exp.Before(wantExpMin) || exp.After(wantExpMax) {
 		t.Errorf("exp %v is outside expected range [%v, %v]", exp, wantExpMin, wantExpMax)
 	}
+	// Returned expiresAt should match the JWT exp claim within 1 second.
+	if expiresAt.Unix() != exp.Unix() {
+		t.Errorf("returned expiresAt %v does not match JWT exp %v", expiresAt, exp)
+	}
+}
+
+func TestLinkGenerator_Generate_Custom_ExpirationDays(t *testing.T) {
+	secret := []byte("test-secret-must-be-at-least-32bytes!")
+	baseURL := "https://lfx.example.com"
+
+	gen := auth.NewLinkGenerator(secret, baseURL)
+	link, _, expiresAt, err := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage", 30)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	tokenStr := strings.TrimPrefix(link, baseURL+"/invite?token=")
+	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return secret, nil
+	})
+	if err != nil {
+		t.Fatalf("jwt.Parse() error = %v", err)
+	}
+
+	claims, _ := token.Claims.(jwt.MapClaims)
+	expFloat, _ := claims["exp"].(float64)
+	exp := time.Unix(int64(expFloat), 0)
+
+	// exp should be ~30 days from now.
+	wantExpMin := time.Now().Add(29*24*time.Hour + 23*time.Hour)
+	wantExpMax := time.Now().Add(30*24*time.Hour + time.Minute)
+	if exp.Before(wantExpMin) || exp.After(wantExpMax) {
+		t.Errorf("exp %v is outside expected 30-day range [%v, %v]", exp, wantExpMin, wantExpMax)
+	}
+	// Returned expiresAt should match the JWT exp claim within 1 second.
+	if expiresAt.Unix() != exp.Unix() {
+		t.Errorf("returned expiresAt %v does not match JWT exp %v", expiresAt, exp)
+	}
 }
 
 func TestLinkGenerator_Generate_WrongSecret(t *testing.T) {
@@ -97,7 +138,7 @@ func TestLinkGenerator_Generate_WrongSecret(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, _, err := gen.Generate("user@example.com", "https://example.com/dest", "res-123", "Manage")
+	link, _, _, err := gen.Generate("user@example.com", "https://example.com/dest", "res-123", "Manage", 0)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -116,8 +157,8 @@ func TestLinkGenerator_Generate_UniqueJTI(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	link1, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage")
-	link2, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage")
+	link1, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage", 0)
+	link2, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage", 0)
 
 	if link1 == link2 {
 		t.Error("two Generate() calls for the same input produced identical links (jti must be unique)")

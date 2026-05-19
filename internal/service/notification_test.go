@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port/mocks"
@@ -21,8 +22,8 @@ const (
 // noopLinkGenerator returns a fixed invite link without signing, for use in tests.
 type noopLinkGenerator struct{}
 
-func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL, resourceUID, role string) (string, string, error) {
-	return testBaseURL + "/invite?token=test-token-for-" + recipientEmail, "test-invite-uid", nil
+func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL, resourceUID, role string, expirationDays int) (string, string, time.Time, error) {
+	return testBaseURL + "/invite?token=test-token-for-" + recipientEmail, "test-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
 }
 
 func newService(email *mocks.EmailSender) *NotificationService {
@@ -46,12 +47,18 @@ func TestHandleSendInvite_HappyPath(t *testing.T) {
 	svc := newService(email)
 
 	req := baseInviteRequest()
-	uid, err := svc.HandleSendInvite(context.Background(), req)
+	result, err := svc.HandleSendInvite(context.Background(), req)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if uid != "test-invite-uid" {
-		t.Errorf("invite_uid: got %q, want %q", uid, "test-invite-uid")
+	if result.InviteUID != "test-invite-uid" {
+		t.Errorf("invite_uid: got %q, want %q", result.InviteUID, "test-invite-uid")
+	}
+	if result.RecipientEmail != req.RecipientEmail {
+		t.Errorf("recipient_email: got %q, want %q", result.RecipientEmail, req.RecipientEmail)
+	}
+	if result.ExpiresAt.IsZero() {
+		t.Error("expires_at should not be zero")
 	}
 	if len(email.Calls) != 1 {
 		t.Fatalf("expected 1 email, got %d", len(email.Calls))

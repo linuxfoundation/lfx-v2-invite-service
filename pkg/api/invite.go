@@ -7,6 +7,8 @@
 // for inter-service use; all other types remain internal.
 package api
 
+import "time"
+
 // Subjects consumed by the invite service.
 const (
 	// SendInviteSubject is used for NATS request/reply by resource services when a
@@ -38,8 +40,10 @@ const (
 // SendInviteResponse is the reply payload returned by the invite service on
 // SendInviteSubject. InviteUID is set on success; Error is set on failure.
 type SendInviteResponse struct {
-	InviteUID string `json:"invite_uid,omitempty"`
-	Error     string `json:"error,omitempty"`
+	InviteUID      string    `json:"invite_uid,omitempty"`
+	RecipientEmail string    `json:"recipient_email,omitempty"`
+	ExpiresAt      time.Time `json:"expires_at,omitempty"`
+	Error          string    `json:"error,omitempty"`
 }
 
 // SendInviteRequest is the NATS payload published on SendInviteSubject by
@@ -60,4 +64,7 @@ type SendInviteRequest struct {
 	// OrgName is the foundation or project name used in the email signature
 	// ("The X Team"). Defaults to "LFX" when empty.
 	OrgName string `json:"org_name,omitempty"`
+	// ExpirationDays is the number of days the invite token should be valid.
+	// If 0 or omitted, defaults to 7 days.
+	ExpirationDays int `json:"expiration_days,omitempty"`
 }
