@@ -35,15 +35,11 @@ const (
 	InviteRoleView InviteRole = "View"
 )
 
-// InviteCreatedEvent is published on InviteCreatedSubject after the invite
-// service issues an invite. Resource services subscribe to this subject to
-// persist the invite UUID alongside their own invite record.
-type InviteCreatedEvent struct {
-	InviteUID      string `json:"invite_uid"`
-	ResourceUID    string `json:"resource_uid"`
-	RecipientEmail string `json:"recipient_email"`
-	Role           string `json:"role"`
-	ExpiresAt      int64  `json:"expires_at"` // Unix timestamp
+// SendInviteResponse is the reply payload returned by the invite service on
+// SendInviteSubject. InviteUID is set on success; Error is set on failure.
+type SendInviteResponse struct {
+	InviteUID string `json:"invite_uid,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // SendInviteRequest is the NATS payload published on SendInviteSubject by

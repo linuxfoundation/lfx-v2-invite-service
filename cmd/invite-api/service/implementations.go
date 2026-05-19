@@ -38,12 +38,10 @@ func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
 
 	linkGen := authinfra.NewLinkGenerator([]byte(cfg.InviteJWTSecret), cfg.SelfServeBaseURL)
 	emailSender := natsinfra.NewNATSEmailSender(nc, emailapi.SendEmailSubject)
-	invitePublisher := natsinfra.NewNATSInvitePublisher(nc)
 
 	NotificationSvc = service.NewNotificationService(
 		emailSender,
 		linkGen,
-		invitePublisher,
 		service.NotificationConfig{
 			DefaultReturnURL: cfg.DefaultReturnURL,
 		},

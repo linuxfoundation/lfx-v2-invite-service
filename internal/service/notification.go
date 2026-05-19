@@ -7,11 +7,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
-	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
 // LinkGenerator generates a signed invite link for a given recipient and destination.
@@ -28,30 +26,29 @@ type NotificationConfig struct {
 
 // NotificationService dispatches invite notification emails via the email service.
 type NotificationService struct {
-	emailSender     port.EmailSender
-	linkGenerator   LinkGenerator
-	invitePublisher port.InvitePublisher
-	config          NotificationConfig
+	emailSender   port.EmailSender
+	linkGenerator LinkGenerator
+	config        NotificationConfig
 }
 
 // NewNotificationService creates a new NotificationService.
-func NewNotificationService(email port.EmailSender, linkGen LinkGenerator, publisher port.InvitePublisher, cfg NotificationConfig) *NotificationService {
+func NewNotificationService(email port.EmailSender, linkGen LinkGenerator, cfg NotificationConfig) *NotificationService {
 	return &NotificationService{
-		emailSender:     email,
-		linkGenerator:   linkGen,
-		invitePublisher: publisher,
-		config:          cfg,
+		emailSender:   email,
+		linkGenerator: linkGen,
+		config:        cfg,
 	}
 }
 
-// HandleSendInvite processes a send-invite request from a resource service and
-// dispatches the invite notification email via the email service.
-func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.SendInviteRequest) error {
+// HandleSendInvite processes a send-invite request from a resource service,
+// dispatches the invite notification email, and returns the invite UUID so the
+// caller can store it. Returns an error if the email could not be sent.
+func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.SendInviteRequest) (inviteUID string, err error) {
 	if req.RecipientEmail == "" {
 		slog.WarnContext(ctx, "send_invite request has no recipient email, skipping",
 			"resource_uid", req.ResourceUID,
 		)
-		return nil
+		return "", nil
 	}
 
 	role := model.Role(req.Role)
@@ -67,7 +64,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 			DeliveryState:  model.DeliveryStateSkipped,
 			ErrorMessage:   "unrecognised role value: " + req.Role,
 		})
-		return nil
+		return "", nil
 	}
 
 	// Determine destination URL — use DefaultReturnURL as fallback when not supplied.
@@ -104,7 +101,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 			DeliveryState:  model.DeliveryStateFailed,
 			ErrorMessage:   err.Error(),
 		})
-		return fmt.Errorf("send invite notification for resource %s: %w", req.ResourceUID, err)
+		return "", fmt.Errorf("send invite notification for resource %s: %w", req.ResourceUID, err)
 	}
 
 	slog.InfoContext(ctx, "invite notification sent",
@@ -119,26 +116,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		DeliveryState:  model.DeliveryStateSent,
 	})
 
-	// Publish invite.created so resource services can store the invite UUID.
-	if inviteUID != "" {
-		event := inviteapi.InviteCreatedEvent{
-			InviteUID:      inviteUID,
-			ResourceUID:    req.ResourceUID,
-			RecipientEmail: req.RecipientEmail,
-			Role:           req.Role,
-			ExpiresAt:      time.Now().Add(7 * 24 * time.Hour).Unix(),
-		}
-		if pubErr := s.invitePublisher.PublishInviteCreated(ctx, event); pubErr != nil {
-			// Log but don't fail — the email was already sent successfully.
-			slog.WarnContext(ctx, "failed to publish invite.created event",
-				"resource_uid", req.ResourceUID,
-				"invite_uid", inviteUID,
-				"error", pubErr,
-			)
-		}
-	}
-
-	return nil
+	return inviteUID, nil
 }
 
 // auditNotification writes a structured audit log entry. In Phase 1 this is a structured

@@ -8,7 +8,7 @@ GIT_COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
 
 DOCKER_REGISTRY := ghcr.io/linuxfoundation
 DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(APP_NAME)
-DOCKER_TAG := $(VERSION)
+DOCKER_TAG := latest
 
 HELM_CHART_PATH := ./charts/lfx-v2-invite-service
 HELM_RELEASE_NAME := lfx-v2-invite-service

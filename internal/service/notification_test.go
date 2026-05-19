@@ -26,7 +26,7 @@ func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL, resourceUID
 }
 
 func newService(email *mocks.EmailSender) *NotificationService {
-	return NewNotificationService(email, &noopLinkGenerator{}, &mocks.InvitePublisher{}, NotificationConfig{DefaultReturnURL: testBaseURL})
+	return NewNotificationService(email, &noopLinkGenerator{}, NotificationConfig{DefaultReturnURL: testBaseURL})
 }
 
 func baseInviteRequest() *model.SendInviteRequest {
@@ -43,12 +43,15 @@ func baseInviteRequest() *model.SendInviteRequest {
 
 func TestHandleSendInvite_HappyPath(t *testing.T) {
 	email := &mocks.EmailSender{}
-	publisher := &mocks.InvitePublisher{}
-	svc := NewNotificationService(email, &noopLinkGenerator{}, publisher, NotificationConfig{DefaultReturnURL: testBaseURL})
+	svc := newService(email)
 
 	req := baseInviteRequest()
-	if err := svc.HandleSendInvite(context.Background(), req); err != nil {
+	uid, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
+	}
+	if uid != "test-invite-uid" {
+		t.Errorf("invite_uid: got %q, want %q", uid, "test-invite-uid")
 	}
 	if len(email.Calls) != 1 {
 		t.Fatalf("expected 1 email, got %d", len(email.Calls))
@@ -66,27 +69,6 @@ func TestHandleSendInvite_HappyPath(t *testing.T) {
 	if n.Role != req.Role {
 		t.Errorf("role: got %q, want %q", n.Role, req.Role)
 	}
-
-	// invite.created must be published with the correct fields.
-	if len(publisher.Calls) != 1 {
-		t.Fatalf("expected 1 invite.created publish, got %d", len(publisher.Calls))
-	}
-	event := publisher.Calls[0]
-	if event.InviteUID != "test-invite-uid" {
-		t.Errorf("invite_uid: got %q, want %q", event.InviteUID, "test-invite-uid")
-	}
-	if event.ResourceUID != req.ResourceUID {
-		t.Errorf("resource_uid: got %q, want %q", event.ResourceUID, req.ResourceUID)
-	}
-	if event.RecipientEmail != req.RecipientEmail {
-		t.Errorf("recipient_email: got %q, want %q", event.RecipientEmail, req.RecipientEmail)
-	}
-	if event.Role != req.Role {
-		t.Errorf("role: got %q, want %q", event.Role, req.Role)
-	}
-	if event.ExpiresAt == 0 {
-		t.Error("expires_at must be set")
-	}
 }
 
 func TestHandleSendInvite_MissingRecipientEmail_Skips(t *testing.T) {
@@ -95,8 +77,12 @@ func TestHandleSendInvite_MissingRecipientEmail_Skips(t *testing.T) {
 
 	req := baseInviteRequest()
 	req.RecipientEmail = ""
-	if err := svc.HandleSendInvite(context.Background(), req); err != nil {
+	uid, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
 		t.Fatalf("expected nil error for missing email, got %v", err)
+	}
+	if uid != "" {
+		t.Errorf("expected empty invite_uid when skipped, got %q", uid)
 	}
 	if len(email.Calls) != 0 {
 		t.Error("expected no email sent when recipient email is empty")
@@ -112,7 +98,7 @@ func TestHandleSendInvite_EmailSendError_Propagates(t *testing.T) {
 	}
 	svc := newService(email)
 
-	err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -127,7 +113,7 @@ func TestHandleSendInvite_NoInviter(t *testing.T) {
 
 	req := baseInviteRequest()
 	req.InviterName = ""
-	if err := svc.HandleSendInvite(context.Background(), req); err != nil {
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 	if len(email.Calls) != 1 {
@@ -144,8 +130,12 @@ func TestHandleSendInvite_UnrecognisedRole_Skips(t *testing.T) {
 
 	req := baseInviteRequest()
 	req.Role = "superadmin"
-	if err := svc.HandleSendInvite(context.Background(), req); err != nil {
+	uid, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
 		t.Fatalf("expected nil error for unrecognised role, got %v", err)
+	}
+	if uid != "" {
+		t.Errorf("expected empty invite_uid when skipped, got %q", uid)
 	}
 	if len(email.Calls) != 0 {
 		t.Error("expected no email sent for unrecognised role")
@@ -158,7 +148,7 @@ func TestHandleSendInvite_ViewRole_Accepted(t *testing.T) {
 
 	req := baseInviteRequest()
 	req.Role = string(model.RoleView)
-	if err := svc.HandleSendInvite(context.Background(), req); err != nil {
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
 		t.Fatalf("expected nil error for View role, got %v", err)
 	}
 	if len(email.Calls) != 1 {

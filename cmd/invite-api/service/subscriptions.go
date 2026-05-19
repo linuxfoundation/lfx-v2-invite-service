@@ -29,7 +29,7 @@ var subscriptions = []subscription{
 	},
 }
 
-// StartSubscriptions binds all NATS JetStream consumers and returns their stop functions.
+// StartSubscriptions binds all NATS subscribers and returns their stop functions.
 func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	var stops []func()
 
