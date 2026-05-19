@@ -7,14 +7,18 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
 // LinkGenerator generates a signed invite link for a given recipient and destination.
+// Returns the full invite URL and the invite UUID (jti) so the service can
+// publish the UUID to resource services via the InviteCreatedEvent.
 type LinkGenerator interface {
-	Generate(recipientEmail, destinationURL, resourceUID, role string) (string, error)
+	Generate(recipientEmail, destinationURL, resourceUID, role string) (link, inviteUID string, err error)
 }
 
 // NotificationConfig holds configuration for the NotificationService.
@@ -24,17 +28,19 @@ type NotificationConfig struct {
 
 // NotificationService dispatches invite notification emails via the email service.
 type NotificationService struct {
-	emailSender   port.EmailSender
-	linkGenerator LinkGenerator
-	config        NotificationConfig
+	emailSender     port.EmailSender
+	linkGenerator   LinkGenerator
+	invitePublisher port.InvitePublisher
+	config          NotificationConfig
 }
 
 // NewNotificationService creates a new NotificationService.
-func NewNotificationService(email port.EmailSender, linkGen LinkGenerator, cfg NotificationConfig) *NotificationService {
+func NewNotificationService(email port.EmailSender, linkGen LinkGenerator, publisher port.InvitePublisher, cfg NotificationConfig) *NotificationService {
 	return &NotificationService{
-		emailSender:   email,
-		linkGenerator: linkGen,
-		config:        cfg,
+		emailSender:     email,
+		linkGenerator:   linkGen,
+		invitePublisher: publisher,
+		config:          cfg,
 	}
 }
 
@@ -71,7 +77,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	}
 
 	// Generate a signed JWT invite link wrapping the destination URL.
-	inviteLink, linkErr := s.linkGenerator.Generate(req.RecipientEmail, destURL, req.ResourceUID, req.Role)
+	inviteLink, inviteUID, linkErr := s.linkGenerator.Generate(req.RecipientEmail, destURL, req.ResourceUID, req.Role)
 	if linkErr != nil {
 		slog.ErrorContext(ctx, "failed to generate invite link — falling back to plain URL",
 			"resource_uid", req.ResourceUID,
@@ -104,6 +110,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	slog.InfoContext(ctx, "invite notification sent",
 		"resource_uid", req.ResourceUID,
 		"recipient_email", req.RecipientEmail,
+		"invite_uid", inviteUID,
 	)
 	s.auditNotification(ctx, &model.NotificationAuditEntry{
 		ResourceUID:    req.ResourceUID,
@@ -111,6 +118,26 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		Role:           role,
 		DeliveryState:  model.DeliveryStateSent,
 	})
+
+	// Publish invite.created so resource services can store the invite UUID.
+	if inviteUID != "" {
+		event := inviteapi.InviteCreatedEvent{
+			InviteUID:      inviteUID,
+			ResourceUID:    req.ResourceUID,
+			RecipientEmail: req.RecipientEmail,
+			Role:           req.Role,
+			ExpiresAt:      time.Now().Add(7 * 24 * time.Hour).Unix(),
+		}
+		if pubErr := s.invitePublisher.PublishInviteCreated(ctx, event); pubErr != nil {
+			// Log but don't fail — the email was already sent successfully.
+			slog.WarnContext(ctx, "failed to publish invite.created event",
+				"resource_uid", req.ResourceUID,
+				"invite_uid", inviteUID,
+				"error", pubErr,
+			)
+		}
+	}
+
 	return nil
 }
 

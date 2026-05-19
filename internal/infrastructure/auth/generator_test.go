@@ -22,9 +22,12 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	role := "Manage"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, err := gen.Generate(recipientEmail, returnURL, resourceUID, role)
+	link, inviteUID, err := gen.Generate(recipientEmail, returnURL, resourceUID, role)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
+	}
+	if inviteUID == "" {
+		t.Fatal("Generate() returned empty inviteUID")
 	}
 
 	// Link must start with the expected prefix.
@@ -70,6 +73,10 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	if claims["jti"] == "" || claims["jti"] == nil {
 		t.Error("jti claim is missing or empty")
 	}
+	// The returned inviteUID must match the jti embedded in the token.
+	if got := claims["jti"]; got != inviteUID {
+		t.Errorf("jti claim = %v, want returned inviteUID %v", got, inviteUID)
+	}
 
 	// exp should be ~7 days from now.
 	expFloat, ok := claims["exp"].(float64)
@@ -90,7 +97,7 @@ func TestLinkGenerator_Generate_WrongSecret(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, err := gen.Generate("user@example.com", "https://example.com/dest", "res-123", "Manage")
+	link, _, err := gen.Generate("user@example.com", "https://example.com/dest", "res-123", "Manage")
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -109,8 +116,8 @@ func TestLinkGenerator_Generate_UniqueJTI(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	link1, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage")
-	link2, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage")
+	link1, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage")
+	link2, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage")
 
 	if link1 == link2 {
 		t.Error("two Generate() calls for the same input produced identical links (jti must be unique)")

@@ -27,12 +27,14 @@ func NewLinkGenerator(secret []byte, inviteLinkBaseURL string) *LinkGenerator {
 
 // Generate creates a signed JWT invite link for the given recipient and destination.
 // The token carries: email, jti (UUID), return_url, resource_uid, role, iat, exp (7 days).
+// Returns the full invite URL and the invite UUID (jti) so callers can store the UUID.
 // The returned URL is: {inviteLinkBaseURL}/invite?token={signedJWT}
-func (g *LinkGenerator) Generate(recipientEmail, returnURL, resourceUID, role string) (string, error) {
+func (g *LinkGenerator) Generate(recipientEmail, returnURL, resourceUID, role string) (link, inviteUID string, err error) {
 	now := time.Now()
+	inviteUID = uuid.NewString()
 	claims := jwt.MapClaims{
 		"email":        recipientEmail,
-		"jti":          uuid.NewString(),
+		"jti":          inviteUID,
 		"return_url":   returnURL,
 		"resource_uid": resourceUID,
 		"role":         role,
@@ -43,8 +45,8 @@ func (g *LinkGenerator) Generate(recipientEmail, returnURL, resourceUID, role st
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString(g.secret)
 	if err != nil {
-		return "", fmt.Errorf("sign invite token: %w", err)
+		return "", "", fmt.Errorf("sign invite token: %w", err)
 	}
 
-	return g.inviteLinkBaseURL + "/invite?token=" + signed, nil
+	return g.inviteLinkBaseURL + "/invite?token=" + signed, inviteUID, nil
 }

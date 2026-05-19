@@ -21,12 +21,12 @@ const (
 // noopLinkGenerator returns a fixed invite link without signing, for use in tests.
 type noopLinkGenerator struct{}
 
-func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL, resourceUID, role string) (string, error) {
-	return testBaseURL + "/invite?token=test-token-for-" + recipientEmail, nil
+func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL, resourceUID, role string) (string, string, error) {
+	return testBaseURL + "/invite?token=test-token-for-" + recipientEmail, "test-invite-uid", nil
 }
 
 func newService(email *mocks.EmailSender) *NotificationService {
-	return NewNotificationService(email, &noopLinkGenerator{}, NotificationConfig{DefaultReturnURL: testBaseURL})
+	return NewNotificationService(email, &noopLinkGenerator{}, &mocks.InvitePublisher{}, NotificationConfig{DefaultReturnURL: testBaseURL})
 }
 
 func baseInviteRequest() *model.SendInviteRequest {
@@ -43,7 +43,8 @@ func baseInviteRequest() *model.SendInviteRequest {
 
 func TestHandleSendInvite_HappyPath(t *testing.T) {
 	email := &mocks.EmailSender{}
-	svc := newService(email)
+	publisher := &mocks.InvitePublisher{}
+	svc := NewNotificationService(email, &noopLinkGenerator{}, publisher, NotificationConfig{DefaultReturnURL: testBaseURL})
 
 	req := baseInviteRequest()
 	if err := svc.HandleSendInvite(context.Background(), req); err != nil {
@@ -64,6 +65,27 @@ func TestHandleSendInvite_HappyPath(t *testing.T) {
 	}
 	if n.Role != req.Role {
 		t.Errorf("role: got %q, want %q", n.Role, req.Role)
+	}
+
+	// invite.created must be published with the correct fields.
+	if len(publisher.Calls) != 1 {
+		t.Fatalf("expected 1 invite.created publish, got %d", len(publisher.Calls))
+	}
+	event := publisher.Calls[0]
+	if event.InviteUID != "test-invite-uid" {
+		t.Errorf("invite_uid: got %q, want %q", event.InviteUID, "test-invite-uid")
+	}
+	if event.ResourceUID != req.ResourceUID {
+		t.Errorf("resource_uid: got %q, want %q", event.ResourceUID, req.ResourceUID)
+	}
+	if event.RecipientEmail != req.RecipientEmail {
+		t.Errorf("recipient_email: got %q, want %q", event.RecipientEmail, req.RecipientEmail)
+	}
+	if event.Role != req.Role {
+		t.Errorf("role: got %q, want %q", event.Role, req.Role)
+	}
+	if event.ExpiresAt == 0 {
+		t.Error("expires_at must be set")
 	}
 }
 

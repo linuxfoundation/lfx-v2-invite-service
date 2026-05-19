@@ -35,6 +35,17 @@ const (
 	InviteRoleView InviteRole = "View"
 )
 
+// InviteCreatedEvent is published on InviteCreatedSubject after the invite
+// service issues an invite. Resource services subscribe to this subject to
+// persist the invite UUID alongside their own invite record.
+type InviteCreatedEvent struct {
+	InviteUID      string `json:"invite_uid"`
+	ResourceUID    string `json:"resource_uid"`
+	RecipientEmail string `json:"recipient_email"`
+	Role           string `json:"role"`
+	ExpiresAt      int64  `json:"expires_at"` // Unix timestamp
+}
+
 // SendInviteRequest is the NATS payload published on SendInviteSubject by
 // resource services to request that the invite service sends an invite email
 // to a user who does not yet have an LFID.
