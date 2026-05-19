@@ -18,7 +18,7 @@ func baseRequest() *model.SendInviteRequest {
 		ResourceUID:    "res-123",
 		ResourceName:   "My Project",
 		Role:           string(model.RoleManage),
-		ReturnURL:    "https://lfx.example.com/resources/res-123",
+		ReturnURL:      "https://lfx.example.com/resources/res-123",
 		OrgName:        "Linux Foundation",
 	}
 }
@@ -121,7 +121,6 @@ func TestRenderInviteHTML_WithoutInviter(t *testing.T) {
 		t.Error("HTML missing generic invite text when no inviter")
 	}
 }
-
 
 func TestRenderInviteHTML_ContainsCTA(t *testing.T) {
 	req := baseRequest()

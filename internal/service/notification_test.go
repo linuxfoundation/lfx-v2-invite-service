@@ -37,7 +37,7 @@ func baseInviteRequest() *model.SendInviteRequest {
 		ResourceUID:    testResourceUID,
 		ResourceName:   testResourceName,
 		Role:           string(model.RoleManage),
-		ReturnURL:    testBaseURL + "/resources/" + testResourceUID,
+		ReturnURL:      testBaseURL + "/resources/" + testResourceUID,
 	}
 }
 

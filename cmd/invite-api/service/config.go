@@ -7,10 +7,10 @@ import "os"
 
 // AppConfig holds all runtime configuration read from environment variables.
 type AppConfig struct {
-	NATSURL            string
-	DefaultReturnURL         string
-	InviteJWTSecret    string
-	SelfServeBaseURL   string
+	NATSURL          string
+	DefaultReturnURL string
+	InviteJWTSecret  string
+	SelfServeBaseURL string
 }
 
 // AppConfigFromEnv reads AppConfig from environment variables, applying defaults where needed.

@@ -15,7 +15,7 @@ const tokenTTL = 7 * 24 * time.Hour
 
 // LinkGenerator creates HMAC-SHA256 signed JWT invite links.
 type LinkGenerator struct {
-	secret      []byte
+	secret            []byte
 	inviteLinkBaseURL string
 }
 
@@ -34,8 +34,8 @@ func (g *LinkGenerator) Generate(recipientEmail, returnURL string) (string, erro
 		"email":      recipientEmail,
 		"jti":        uuid.NewString(),
 		"return_url": returnURL,
-		"iat":          now.Unix(),
-		"exp":          now.Add(tokenTTL).Unix(),
+		"iat":        now.Unix(),
+		"exp":        now.Add(tokenTTL).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
