@@ -32,6 +32,9 @@ func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
 	if cfg.InviteJWTSecret == "" {
 		return fmt.Errorf("INVITE_JWT_SECRET is required but not set")
 	}
+	if len(cfg.InviteJWTSecret) < 32 {
+		return fmt.Errorf("INVITE_JWT_SECRET must be at least 32 bytes for HS256 (got %d)", len(cfg.InviteJWTSecret))
+	}
 
 	linkGen := authinfra.NewLinkGenerator([]byte(cfg.InviteJWTSecret), cfg.SelfServeBaseURL)
 	emailSender := natsinfra.NewNATSEmailSender(nc, emailapi.SendEmailSubject)

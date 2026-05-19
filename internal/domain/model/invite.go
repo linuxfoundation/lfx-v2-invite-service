@@ -3,9 +3,11 @@
 
 package model
 
-// SendInviteRequest is the NATS payload published by resource services on
-// lfx.invite-service.send_invite to request an invite notification email.
-// The invite service owns the email template; the email service handles delivery.
+// SendInviteRequest is the internal domain representation of the invite payload.
+// It mirrors pkg/api.SendInviteRequest, which is the public contract published
+// by resource services over NATS. Keep both in sync when adding fields —
+// the split is intentional: pkg/api is the inter-service contract, this package
+// is the internal domain model owned by the invite service.
 type SendInviteRequest struct {
 	RecipientEmail string `json:"recipient_email"`
 	RecipientName  string `json:"recipient_name"`

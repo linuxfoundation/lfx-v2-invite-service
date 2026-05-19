@@ -58,6 +58,8 @@ func (c *Client) StartSendInviteConsumer(
 					"subject", subject,
 					"error", err,
 				)
+				// ACK and discard: malformed messages will never parse successfully
+				// on re-delivery, so retrying would only exhaust MaxDeliver.
 				return nil
 			}
 			return handler(ctx, &req)
