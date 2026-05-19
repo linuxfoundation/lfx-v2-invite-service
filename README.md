@@ -50,10 +50,12 @@ An HTTP API for LFID invite issuance and acceptance is coming soon.
 
 | Variable            | Default                                            | Description                        |
 | ------------------- | -------------------------------------------------- | ---------------------------------- |
-| `NATS_URL`          | `nats://lfx-platform-nats.lfx.svc.cluster.local:4222` | NATS server URL              |
-| `LFX_BASE_URL`      | `https://lfx.linuxfoundation.org`                  | Base URL for deep links in emails  |
-| `LOG_LEVEL`         | `debug`                                            | Log level: debug, info, warn       |
-| `OTEL_SERVICE_NAME` | `lfx-v2-invite-service`                            | OpenTelemetry service name         |
+| `NATS_URL`              | `nats://lfx-platform-nats.lfx.svc.cluster.local:4222` | NATS server URL                                  |
+| `LFX_BASE_URL`          | `https://lfx.linuxfoundation.org`                  | Fallback deep-link URL when request omits one     |
+| `INVITE_JWT_SECRET`     | (required)                                         | HMAC-SHA256 key for signing invite JWTs           |
+| `INVITE_LINK_BASE_URL`  | `https://lfx.linuxfoundation.org`                  | Base URL of the invite acceptance web app         |
+| `LOG_LEVEL`             | `debug`                                            | Log level: debug, info, warn                      |
+| `OTEL_SERVICE_NAME`     | `lfx-v2-invite-service`                            | OpenTelemetry service name                        |
 
 ## Development
 

@@ -12,6 +12,11 @@ import (
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
 )
 
+// LinkGenerator generates a signed invite link for a given recipient and destination.
+type LinkGenerator interface {
+	Generate(recipientEmail, destinationURL string) (string, error)
+}
+
 // NotificationConfig holds configuration for the NotificationService.
 type NotificationConfig struct {
 	LFXBaseURL string
@@ -19,15 +24,17 @@ type NotificationConfig struct {
 
 // NotificationService dispatches invite notification emails via the email service.
 type NotificationService struct {
-	emailSender port.EmailSender
-	config      NotificationConfig
+	emailSender   port.EmailSender
+	linkGenerator LinkGenerator
+	config        NotificationConfig
 }
 
 // NewNotificationService creates a new NotificationService.
-func NewNotificationService(email port.EmailSender, cfg NotificationConfig) *NotificationService {
+func NewNotificationService(email port.EmailSender, linkGen LinkGenerator, cfg NotificationConfig) *NotificationService {
 	return &NotificationService{
-		emailSender: email,
-		config:      cfg,
+		emailSender:   email,
+		linkGenerator: linkGen,
+		config:        cfg,
 	}
 }
 
@@ -57,9 +64,26 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		return nil
 	}
 
-	if req.DeepLinkURL == "" && s.config.LFXBaseURL != "" {
-		req.DeepLinkURL = s.config.LFXBaseURL
+	// Determine destination URL — use LFXBaseURL as fallback when not supplied.
+	destURL := req.DeepLinkURL
+	if destURL == "" && s.config.LFXBaseURL != "" {
+		destURL = s.config.LFXBaseURL
 	}
+
+	// Generate a signed JWT invite link wrapping the destination URL.
+	inviteLink, linkErr := s.linkGenerator.Generate(req.RecipientEmail, destURL)
+	if linkErr != nil {
+		slog.ErrorContext(ctx, "failed to generate invite link — falling back to plain URL",
+			"resource_uid", req.ResourceUID,
+			"error", linkErr,
+		)
+		inviteLink = destURL
+	}
+
+	// Shallow-copy the request so we don't mutate the caller's struct.
+	reqWithLink := *req
+	reqWithLink.DeepLinkURL = inviteLink
+	req = &reqWithLink
 
 	if err := s.emailSender.SendNotification(ctx, req); err != nil {
 		slog.ErrorContext(ctx, "failed to send invite notification",

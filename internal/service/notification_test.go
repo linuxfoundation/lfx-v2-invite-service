@@ -18,8 +18,15 @@ const (
 	testResourceName = "Test Project"
 )
 
+// noopLinkGenerator returns a fixed invite link without signing, for use in tests.
+type noopLinkGenerator struct{}
+
+func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL string) (string, error) {
+	return testBaseURL + "/invite?token=test-token-for-" + recipientEmail, nil
+}
+
 func newService(email *mocks.EmailSender) *NotificationService {
-	return NewNotificationService(email, NotificationConfig{LFXBaseURL: testBaseURL})
+	return NewNotificationService(email, &noopLinkGenerator{}, NotificationConfig{LFXBaseURL: testBaseURL})
 }
 
 func baseInviteRequest() *model.SendInviteRequest {

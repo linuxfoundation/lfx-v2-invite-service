@@ -54,6 +54,13 @@ app:
   # lfxBaseURL is the base URL for LFX deep links included in invite emails
   lfxBaseURL: "https://lfx.linuxfoundation.org"
 
+  # inviteLinkBaseURL is the base URL of the LFX Self-Serve web app used to build
+  # the accept-invite link.
+  inviteLinkBaseURL: "https://lfx.linuxfoundation.org"
+
+  # inviteJWTSecret is the HMAC-SHA256 signing key for invite tokens (local dev only).
+  inviteJWTSecret: "change-me-local-dev-secret"
+
   # extraEnv allows injecting additional environment variables into the container.
   # These are rendered before OTel variables.
   extraEnv: []

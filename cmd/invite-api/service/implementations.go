@@ -5,9 +5,11 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
+	authinfra "github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/auth"
 	natsinfra "github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/nats"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/service"
 )
@@ -27,10 +29,16 @@ func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
 	}
 	NATSClient = nc
 
+	if cfg.InviteJWTSecret == "" {
+		return fmt.Errorf("INVITE_JWT_SECRET is required but not set")
+	}
+
+	linkGen := authinfra.NewLinkGenerator([]byte(cfg.InviteJWTSecret), cfg.InviteLinkBaseURL)
 	emailSender := natsinfra.NewNATSEmailSender(nc, emailapi.SendEmailSubject)
 
 	NotificationSvc = service.NewNotificationService(
 		emailSender,
+		linkGen,
 		service.NotificationConfig{
 			LFXBaseURL: cfg.LFXBaseURL,
 		},
