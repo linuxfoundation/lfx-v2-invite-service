@@ -40,9 +40,11 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			)
 			resp.Error = handlerErr.Error()
 		} else {
-			resp.InviteUID = result.InviteUID
-			resp.RecipientEmail = result.RecipientEmail
-			resp.ExpiresAt = result.ExpiresAt
+			resp.Invite = &api.InviteData{
+				UID:       result.InviteUID,
+				Email:     result.RecipientEmail,
+				ExpiresAt: result.ExpiresAt,
+			}
 		}
 
 		data, marshalErr := json.Marshal(resp)
@@ -55,12 +57,11 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			slog.ErrorContext(ctx, "send_invite: failed to send reply", "error", replyErr)
 			return
 		}
-		slog.InfoContext(ctx, "send_invite reply sent",
-			"resource_uid", req.ResourceUID,
-			"invite_uid", resp.InviteUID,
-			"expires_at", resp.ExpiresAt,
-			"error", resp.Error,
-		)
+		logArgs := []any{"resource_uid", req.ResourceUID, "error", resp.Error}
+		if resp.Invite != nil {
+			logArgs = append(logArgs, "invite_uid", resp.Invite.UID, "expires_at", resp.Invite.ExpiresAt)
+		}
+		slog.InfoContext(ctx, "send_invite reply sent", logArgs...)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("start subscription %q: %w", "send-invite", err)

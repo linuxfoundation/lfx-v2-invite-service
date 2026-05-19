@@ -37,13 +37,18 @@ const (
 	InviteRoleView InviteRole = "View"
 )
 
+// InviteData holds the invite metadata returned on a successful send_invite reply.
+type InviteData struct {
+	UID       string    `json:"uid"`
+	Email     string    `json:"email"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // SendInviteResponse is the reply payload returned by the invite service on
-// SendInviteSubject. InviteUID is set on success; Error is set on failure.
+// SendInviteSubject. Invite is set on success; Error is set on failure.
 type SendInviteResponse struct {
-	InviteUID      string    `json:"invite_uid,omitempty"`
-	RecipientEmail string    `json:"recipient_email,omitempty"`
-	ExpiresAt      time.Time `json:"expires_at,omitempty"`
-	Error          string    `json:"error,omitempty"`
+	Invite *InviteData `json:"invite,omitempty"`
+	Error  string      `json:"error,omitempty"`
 }
 
 // SendInviteRequest is the NATS payload published on SendInviteSubject by
