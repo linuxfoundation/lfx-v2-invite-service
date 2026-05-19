@@ -12,8 +12,7 @@ import (
 	"time"
 
 	appsvc "github.com/linuxfoundation/lfx-v2-invite-service/cmd/invite-api/service"
-	logging "github.com/linuxfoundation/lfx-v2-invite-service/pkg/log"
-	"github.com/linuxfoundation/lfx-v2-invite-service/pkg/utils"
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/observability"
 )
 
 var (
@@ -25,7 +24,7 @@ var (
 const gracefulShutdownSeconds = 25
 
 func init() {
-	logging.InitStructureLogConfig()
+	observability.InitStructureLogConfig()
 }
 
 func main() {
@@ -38,11 +37,11 @@ func main() {
 func run() error {
 	ctx := context.Background()
 
-	otelConfig := utils.OTelConfigFromEnv(ctx)
+	otelConfig := observability.OTelConfigFromEnv(ctx)
 	if otelConfig.ServiceVersion == "" {
 		otelConfig.ServiceVersion = Version
 	}
-	otelShutdown, err := utils.SetupOTelSDKWithConfig(ctx, otelConfig)
+	otelShutdown, err := observability.SetupOTelSDKWithConfig(ctx, otelConfig)
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,7 @@
 // Copyright The Linux Foundation and each contributor to LFX.
 // SPDX-License-Identifier: MIT
 
-package utils
+package observability
 
 import (
 	"context"
@@ -30,15 +30,10 @@ import (
 )
 
 const (
-	// OTelProtocolGRPC configures OTLP exporters to use gRPC protocol.
-	OTelProtocolGRPC = "grpc"
-	// OTelProtocolHTTP configures OTLP exporters to use HTTP protocol.
-	OTelProtocolHTTP = "http"
-
-	// OTelExporterOTLP configures signals to export via OTLP.
-	OTelExporterOTLP = "otlp"
-	// OTelExporterNone disables exporting for a signal.
-	OTelExporterNone = "none"
+	otelProtocolGRPC = "grpc"
+	otelProtocolHTTP = "http"
+	otelExporterOTLP = "otlp"
+	otelExporterNone = "none"
 )
 
 // OTelConfig holds OpenTelemetry configuration options.
@@ -64,7 +59,6 @@ type OTelConfig struct {
 	// Env: OTEL_TRACES_EXPORTER (default: "none")
 	TracesExporter string
 	// TracesSampleRatio specifies the sampling ratio for traces (0.0 to 1.0).
-	// A value of 1.0 means all traces are sampled, 0.5 means 50% are sampled.
 	// Env: OTEL_TRACES_SAMPLE_RATIO (default: 1.0)
 	TracesSampleRatio float64
 	// MetricsExporter specifies the metrics exporter: "otlp" or "none".
@@ -80,7 +74,6 @@ type OTelConfig struct {
 }
 
 // OTelConfigFromEnv creates an OTelConfig from environment variables.
-// See OTelConfig struct fields for supported environment variables.
 func OTelConfigFromEnv(ctx context.Context) OTelConfig {
 	serviceName := os.Getenv("OTEL_SERVICE_NAME")
 	if serviceName == "" {
@@ -91,26 +84,25 @@ func OTelConfigFromEnv(ctx context.Context) OTelConfig {
 
 	protocol := os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
 	if protocol == "" {
-		protocol = OTelProtocolGRPC
+		protocol = otelProtocolGRPC
 	}
 
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-
 	insecure := os.Getenv("OTEL_EXPORTER_OTLP_INSECURE") == "true"
 
 	tracesExporter := os.Getenv("OTEL_TRACES_EXPORTER")
 	if tracesExporter == "" {
-		tracesExporter = OTelExporterNone
+		tracesExporter = otelExporterNone
 	}
 
 	metricsExporter := os.Getenv("OTEL_METRICS_EXPORTER")
 	if metricsExporter == "" {
-		metricsExporter = OTelExporterNone
+		metricsExporter = otelExporterNone
 	}
 
 	logsExporter := os.Getenv("OTEL_LOGS_EXPORTER")
 	if logsExporter == "" {
-		logsExporter = OTelExporterNone
+		logsExporter = otelExporterNone
 	}
 
 	propagators := os.Getenv("OTEL_PROPAGATORS")
@@ -160,20 +152,11 @@ func OTelConfigFromEnv(ctx context.Context) OTelConfig {
 	}
 }
 
-// SetupOTelSDK bootstraps the OpenTelemetry pipeline with OTLP exporters.
-// If it does not return an error, make sure to call shutdown for proper cleanup.
-func SetupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, err error) {
-	return SetupOTelSDKWithConfig(ctx, OTelConfigFromEnv(ctx))
-}
-
 // SetupOTelSDKWithConfig bootstraps the OpenTelemetry pipeline with the provided configuration.
-// If it does not return an error, make sure to call shutdown for proper cleanup.
+// If it does not return an error, make sure to call the returned shutdown function.
 func SetupOTelSDKWithConfig(ctx context.Context, cfg OTelConfig) (shutdown func(context.Context) error, err error) {
 	var shutdownFuncs []func(context.Context) error
 
-	// shutdown calls cleanup functions registered via shutdownFuncs.
-	// The errors from the calls are joined.
-	// Each registered cleanup will be invoked once.
 	shutdown = func(ctx context.Context) error {
 		var err error
 		for _, fn := range shutdownFuncs {
@@ -183,31 +166,23 @@ func SetupOTelSDKWithConfig(ctx context.Context, cfg OTelConfig) (shutdown func(
 		return err
 	}
 
-	// handleErr calls shutdown for cleanup and makes sure that all errors are returned.
 	handleErr := func(inErr error) {
 		err = errors.Join(inErr, shutdown(ctx))
 	}
 
-	// Normalize endpoint to include a URL scheme so WithEndpointURL can
-	// parse it. Bare IP:port values like "127.0.0.1:4317" cause url.Parse
-	// to fail with "first path segment in URL cannot contain colon".
 	if cfg.Endpoint != "" {
 		cfg.Endpoint = endpointURL(cfg.Endpoint, cfg.Insecure)
 	}
 
-	// Create resource with service information.
 	res, err := newResource(cfg)
 	if err != nil {
 		handleErr(err)
 		return
 	}
 
-	// Set up propagator.
-	prop := newPropagator(ctx, cfg)
-	otel.SetTextMapPropagator(prop)
+	otel.SetTextMapPropagator(newPropagator(ctx, cfg))
 
-	// Set up trace provider if enabled.
-	if cfg.TracesExporter != OTelExporterNone {
+	if cfg.TracesExporter != otelExporterNone {
 		var tracerProvider *trace.TracerProvider
 		tracerProvider, err = newTraceProvider(ctx, cfg, res)
 		if err != nil {
@@ -218,8 +193,7 @@ func SetupOTelSDKWithConfig(ctx context.Context, cfg OTelConfig) (shutdown func(
 		otel.SetTracerProvider(tracerProvider)
 	}
 
-	// Set up metrics provider if enabled.
-	if cfg.MetricsExporter != OTelExporterNone {
+	if cfg.MetricsExporter != otelExporterNone {
 		var metricsProvider *metric.MeterProvider
 		metricsProvider, err = newMetricsProvider(ctx, cfg, res)
 		if err != nil {
@@ -230,8 +204,7 @@ func SetupOTelSDKWithConfig(ctx context.Context, cfg OTelConfig) (shutdown func(
 		otel.SetMeterProvider(metricsProvider)
 	}
 
-	// Set up logger provider if enabled.
-	if cfg.LogsExporter != OTelExporterNone {
+	if cfg.LogsExporter != otelExporterNone {
 		var loggerProvider *log.LoggerProvider
 		loggerProvider, err = newLoggerProvider(ctx, cfg, res)
 		if err != nil {
@@ -245,7 +218,6 @@ func SetupOTelSDKWithConfig(ctx context.Context, cfg OTelConfig) (shutdown func(
 	return
 }
 
-// newResource creates an OpenTelemetry resource with service name and version attributes.
 func newResource(cfg OTelConfig) (*resource.Resource, error) {
 	return resource.Merge(
 		resource.Default(),
@@ -257,8 +229,6 @@ func newResource(cfg OTelConfig) (*resource.Resource, error) {
 	)
 }
 
-// newPropagator creates a composite text map propagator based on the configured propagators.
-// Supported propagators: "tracecontext", "baggage", "jaeger"
 func newPropagator(ctx context.Context, cfg OTelConfig) propagation.TextMapPropagator {
 	var propagators []propagation.TextMapPropagator
 
@@ -276,7 +246,6 @@ func newPropagator(ctx context.Context, cfg OTelConfig) propagation.TextMapPropa
 	}
 
 	if len(propagators) == 0 {
-		// Fall back to default propagators if none were configured
 		propagators = []propagation.TextMapPropagator{
 			propagation.TraceContext{},
 			propagation.Baggage{},
@@ -286,11 +255,6 @@ func newPropagator(ctx context.Context, cfg OTelConfig) propagation.TextMapPropa
 	return propagation.NewCompositeTextMapPropagator(propagators...)
 }
 
-// endpointURL ensures the endpoint has a URL scheme. The OTel SDK internally
-// reads OTEL_EXPORTER_OTLP_ENDPOINT and parses it with url.Parse, which fails
-// for bare IP:port values like "127.0.0.1:4317" with "first path segment in
-// URL cannot contain colon". Prepending a scheme based on the insecure flag
-// produces a valid URL the SDK can parse.
 func endpointURL(raw string, insecure bool) string {
 	if strings.Contains(raw, "://") {
 		return raw
@@ -301,12 +265,11 @@ func endpointURL(raw string, insecure bool) string {
 	return "https://" + raw
 }
 
-// newTraceProvider creates a TracerProvider with an OTLP exporter configured based on the protocol setting.
 func newTraceProvider(ctx context.Context, cfg OTelConfig, res *resource.Resource) (*trace.TracerProvider, error) {
 	var exporter trace.SpanExporter
 	var err error
 
-	if cfg.Protocol == OTelProtocolHTTP {
+	if cfg.Protocol == otelProtocolHTTP {
 		var opts []otlptracehttp.Option
 		if cfg.Endpoint != "" {
 			opts = append(opts, otlptracehttp.WithEndpointURL(cfg.Endpoint))
@@ -330,22 +293,18 @@ func newTraceProvider(ctx context.Context, cfg OTelConfig, res *resource.Resourc
 		return nil, err
 	}
 
-	traceProvider := trace.NewTracerProvider(
+	return trace.NewTracerProvider(
 		trace.WithResource(res),
 		trace.WithSampler(trace.TraceIDRatioBased(cfg.TracesSampleRatio)),
-		trace.WithBatcher(exporter,
-			trace.WithBatchTimeout(time.Second),
-		),
-	)
-	return traceProvider, nil
+		trace.WithBatcher(exporter, trace.WithBatchTimeout(time.Second)),
+	), nil
 }
 
-// newMetricsProvider creates a MeterProvider with an OTLP exporter configured based on the protocol setting.
 func newMetricsProvider(ctx context.Context, cfg OTelConfig, res *resource.Resource) (*metric.MeterProvider, error) {
 	var exporter metric.Exporter
 	var err error
 
-	if cfg.Protocol == OTelProtocolHTTP {
+	if cfg.Protocol == otelProtocolHTTP {
 		var opts []otlpmetrichttp.Option
 		if cfg.Endpoint != "" {
 			opts = append(opts, otlpmetrichttp.WithEndpointURL(cfg.Endpoint))
@@ -369,21 +328,17 @@ func newMetricsProvider(ctx context.Context, cfg OTelConfig, res *resource.Resou
 		return nil, err
 	}
 
-	metricsProvider := metric.NewMeterProvider(
+	return metric.NewMeterProvider(
 		metric.WithResource(res),
-		metric.WithReader(metric.NewPeriodicReader(exporter,
-			metric.WithInterval(30*time.Second),
-		)),
-	)
-	return metricsProvider, nil
+		metric.WithReader(metric.NewPeriodicReader(exporter, metric.WithInterval(30*time.Second))),
+	), nil
 }
 
-// newLoggerProvider creates a LoggerProvider with an OTLP exporter configured based on the protocol setting.
 func newLoggerProvider(ctx context.Context, cfg OTelConfig, res *resource.Resource) (*log.LoggerProvider, error) {
 	var exporter log.Exporter
 	var err error
 
-	if cfg.Protocol == OTelProtocolHTTP {
+	if cfg.Protocol == otelProtocolHTTP {
 		var opts []otlploghttp.Option
 		if cfg.Endpoint != "" {
 			opts = append(opts, otlploghttp.WithEndpointURL(cfg.Endpoint))
@@ -407,9 +362,8 @@ func newLoggerProvider(ctx context.Context, cfg OTelConfig, res *resource.Resour
 		return nil, err
 	}
 
-	loggerProvider := log.NewLoggerProvider(
+	return log.NewLoggerProvider(
 		log.WithResource(res),
 		log.WithProcessor(log.NewBatchProcessor(exporter)),
-	)
-	return loggerProvider, nil
+	), nil
 }

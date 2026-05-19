@@ -13,7 +13,6 @@ import (
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	smtptmpl "github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/smtp"
-	pkgerrors "github.com/linuxfoundation/lfx-v2-invite-service/pkg/errors"
 )
 
 // emailServiceTimeout is the maximum time to wait for the email service to accept a message.
@@ -44,7 +43,7 @@ func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendI
 
 	data, err := json.Marshal(envelope)
 	if err != nil {
-		return pkgerrors.NewUnexpected("failed to marshal email request", err)
+		return newUnexpected("failed to marshal email request", err)
 	}
 
 	// Enforce a hard deadline so the caller is never blocked indefinitely if the
@@ -68,7 +67,7 @@ func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendI
 
 	var errResp emailapi.SendEmailErrorResponse
 	if jsonErr := json.Unmarshal(reply, &errResp); jsonErr == nil && errResp.Error != "" {
-		return pkgerrors.NewServiceUnavailable("email service returned error",
+		return newServiceUnavailable("email service returned error",
 			errors.New(errResp.Error))
 	}
 

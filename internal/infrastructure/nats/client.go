@@ -11,7 +11,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
-	pkgerrors "github.com/linuxfoundation/lfx-v2-invite-service/pkg/errors"
 )
 
 // Client wraps the NATS connection and provides infrastructure operations.
@@ -33,7 +32,7 @@ func New(ctx context.Context, url string) (*Client, error) {
 		}),
 	)
 	if err != nil {
-		return nil, pkgerrors.NewServiceUnavailable("failed to connect to NATS", err)
+		return nil, newServiceUnavailable("failed to connect to NATS", err)
 	}
 
 	slog.InfoContext(ctx, "NATS connected", "url", conn.ConnectedUrl())
@@ -50,7 +49,7 @@ func (c *Client) Close() {
 // IsReady returns an error if the connection is not usable.
 func (c *Client) IsReady() error {
 	if c.conn == nil || !c.conn.IsConnected() || c.conn.IsDraining() {
-		return pkgerrors.NewServiceUnavailable("NATS client is not ready")
+		return newServiceUnavailable("NATS client is not ready")
 	}
 	return nil
 }
@@ -59,7 +58,7 @@ func (c *Client) IsReady() error {
 func (c *Client) Request(ctx context.Context, subject string, data []byte) ([]byte, error) {
 	msg, err := c.conn.RequestWithContext(ctx, subject, data)
 	if err != nil {
-		return nil, pkgerrors.NewServiceUnavailable("NATS request failed", err)
+		return nil, newServiceUnavailable("NATS request failed", err)
 	}
 	return msg.Data, nil
 }
@@ -75,12 +74,12 @@ func (c *Client) ConsumeWithJetStream(
 ) (func(), error) {
 	js, err := jetstream.New(c.conn)
 	if err != nil {
-		return nil, pkgerrors.NewServiceUnavailable("failed to create JetStream client", err)
+		return nil, newServiceUnavailable("failed to create JetStream client", err)
 	}
 
 	consumer, err := js.CreateOrUpdateConsumer(ctx, streamName, cfg)
 	if err != nil {
-		return nil, pkgerrors.NewServiceUnavailable("failed to create JetStream consumer", err)
+		return nil, newServiceUnavailable("failed to create JetStream consumer", err)
 	}
 
 	consumeCtx, err := consumer.Consume(func(msg jetstream.Msg) {
@@ -100,7 +99,7 @@ func (c *Client) ConsumeWithJetStream(
 		}
 	})
 	if err != nil {
-		return nil, pkgerrors.NewServiceUnavailable("failed to start JetStream consume loop", err)
+		return nil, newServiceUnavailable("failed to start JetStream consume loop", err)
 	}
 
 	slog.InfoContext(ctx, "JetStream durable consumer started",
