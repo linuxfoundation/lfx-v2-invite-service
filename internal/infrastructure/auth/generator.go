@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const tokenTTL = 7 * 24 * time.Hour
+const tokenTTL = 30 * 24 * time.Hour
 
 // LinkGenerator creates HMAC-SHA256 signed JWT invite links.
 type LinkGenerator struct {

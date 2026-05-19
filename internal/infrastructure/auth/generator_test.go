@@ -78,14 +78,14 @@ func TestLinkGenerator_Generate(t *testing.T) {
 		t.Errorf("jti claim = %v, want returned inviteUID %v", got, inviteUID)
 	}
 
-	// exp should be ~7 days from now.
+	// exp should be ~30 days from now (default TTL).
 	expFloat, ok := claims["exp"].(float64)
 	if !ok {
 		t.Fatal("exp claim is not a number")
 	}
 	exp := time.Unix(int64(expFloat), 0)
-	wantExpMin := time.Now().Add(6*24*time.Hour + 23*time.Hour)
-	wantExpMax := time.Now().Add(7*24*time.Hour + time.Minute)
+	wantExpMin := time.Now().Add(29*24*time.Hour + 23*time.Hour)
+	wantExpMax := time.Now().Add(30*24*time.Hour + time.Minute)
 	if exp.Before(wantExpMin) || exp.After(wantExpMax) {
 		t.Errorf("exp %v is outside expected range [%v, %v]", exp, wantExpMin, wantExpMax)
 	}
