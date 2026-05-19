@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:sans-serif;color:#333;max-width:600px;margin:0 auto;padding:24px">
+  <!-- preheader -->
+  <span style="display:none;font-size:1px;color:#ffffff;max-height:0;overflow:hidden">Create your LFX account to accept the invitation and get started.</span>
+  <img src="https://lfx.linuxfoundation.org/images/lfx-logo.svg" alt="LFX" height="32" style="margin-bottom:24px">
+  <p>Hi {{.RecipientFirstName}},</p>
+  {{if .HasInviter}}
+  <p><strong>{{.InviterFullName}}</strong> invited you to join <strong>{{.ResourceName}}</strong> on LFX with the <strong>{{.Role}}</strong> role.</p>
+  {{else}}
+  <p>You have been invited to join <strong>{{.ResourceName}}</strong> on LFX with the <strong>{{.Role}}</strong> role.</p>
+  {{end}}
+  <p>You&#39;ll need an LFX account to access the group.</p>
+  <p><strong>Getting started takes about a minute:</strong></p>
+  <ol style="line-height:1.8">
+    <li>Click the button below to accept the invitation</li>
+    <li>Create your LFX account (or sign in if you have a Linux Foundation ID)</li>
+    <li>You&#39;ll be taken straight to the <strong>{{.ResourceName}}</strong> dashboard</li>
+  </ol>
+  <p style="margin-top:32px">
+    <a href="{{.DeepLinkURL}}"
+       style="background:#0066cc;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">
+      Accept invitation &amp; create account
+    </a>
+  </p>
+  <p style="margin-top:32px">
+    Thanks,<br>
+    The {{.OrgName}} Team
+  </p>
+  <p style="margin-top:32px;font-size:12px;color:#888">
+    If you did not expect this email, you can safely ignore it.
+  </p>
+</body>
+</html>

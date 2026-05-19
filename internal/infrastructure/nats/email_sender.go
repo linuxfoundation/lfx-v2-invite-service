@@ -7,10 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
+	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	smtptmpl "github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/smtp"
 	pkgerrors "github.com/linuxfoundation/lfx-v2-invite-service/pkg/errors"
@@ -32,25 +32,12 @@ func NewNATSEmailSender(client *Client, subject string) *NATSEmailSender {
 	return &NATSEmailSender{client: client, subject: subject}
 }
 
-// sendEmailRequest matches the email service's SendEmailRequest payload shape.
-type sendEmailRequest struct {
-	To      string `json:"to"`
-	Subject string `json:"subject"`
-	HTML    string `json:"html"`
-	Text    string `json:"text"`
-}
-
-// sendEmailErrorResponse matches the email service's SendEmailErrorResponse payload shape.
-type sendEmailErrorResponse struct {
-	Error string `json:"error"`
-}
-
 // SendNotification renders the invite template and publishes to the email service
 // via NATS request/reply. An empty reply means success.
 func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendInviteRequest) error {
-	envelope := sendEmailRequest{
+	envelope := emailapi.SendEmailRequest{
 		To:      req.RecipientEmail,
-		Subject: fmt.Sprintf("You've been added to %s", req.ResourceName),
+		Subject: smtptmpl.InviteEmailSubject(req),
 		HTML:    smtptmpl.RenderInviteHTML(req),
 		Text:    smtptmpl.RenderInvitePlain(req),
 	}
@@ -79,7 +66,7 @@ func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendI
 		return nil
 	}
 
-	var errResp sendEmailErrorResponse
+	var errResp emailapi.SendEmailErrorResponse
 	if jsonErr := json.Unmarshal(reply, &errResp); jsonErr == nil && errResp.Error != "" {
 		return pkgerrors.NewServiceUnavailable("email service returned error",
 			errors.New(errResp.Error))

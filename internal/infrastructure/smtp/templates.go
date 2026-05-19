@@ -5,64 +5,96 @@ package smtp
 
 import (
 	"bytes"
+	_ "embed"
 	"fmt"
-	"html/template"
+	htmltmpl "html/template"
+	"strings"
+	texttmpl "text/template"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 )
 
-var inviteHTMLTmpl = template.Must(template.New("invite-html").Parse(`<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="font-family:sans-serif;color:#333;max-width:600px;margin:0 auto;padding:24px">
-  <img src="https://lfx.linuxfoundation.org/images/lfx-logo.svg" alt="LFX" height="32" style="margin-bottom:24px">
-  <h2 style="margin-bottom:8px">You&#39;ve been added to {{.ResourceName}}</h2>
-  <p>Hello {{.RecipientName}},</p>
-  {{if .InviterName}}
-  <p><strong>{{.InviterName}}</strong> has added you to <strong>{{.ResourceName}}</strong> with <strong>{{.Role}}</strong> access.</p>
-  {{else}}
-  <p>You have been added to <strong>{{.ResourceName}}</strong> with <strong>{{.Role}}</strong> access.</p>
-  {{end}}
-  <p style="margin-top:32px">
-    <a href="{{.DeepLinkURL}}"
-       style="background:#0066cc;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">
-      Get Started
-    </a>
-  </p>
-  <p style="margin-top:32px;font-size:12px;color:#888">
-    If you did not expect this email, you can safely ignore it.
-  </p>
-</body>
-</html>`))
+//go:embed invite_subject.gotemplate
+var subjectTmplSrc string
+
+//go:embed invite_body.gohtml
+var htmlTmplSrc string
+
+//go:embed invite_text.gotemplate
+var plainTmplSrc string
+
+var (
+	subjectTmpl = texttmpl.Must(texttmpl.New("invite-subject").Parse(subjectTmplSrc))
+	htmlTmpl    = htmltmpl.Must(htmltmpl.New("invite-body").Parse(htmlTmplSrc))
+	plainTmpl   = texttmpl.Must(texttmpl.New("invite-text").Parse(plainTmplSrc))
+)
+
+// inviteEmailData is the template execution context built from a SendInviteRequest.
+type inviteEmailData struct {
+	RecipientFirstName string
+	InviterFirstName   string
+	InviterFullName    string
+	ResourceName       string
+	Role               string
+	DeepLinkURL        string
+	OrgName            string
+	HasInviter         bool
+}
+
+func buildTemplateData(req *model.SendInviteRequest) inviteEmailData {
+	orgName := req.OrgName
+	if orgName == "" {
+		orgName = "LFX"
+	}
+	return inviteEmailData{
+		RecipientFirstName: firstName(req.RecipientName),
+		InviterFirstName:   firstName(req.InviterName),
+		InviterFullName:    req.InviterName,
+		ResourceName:       req.ResourceName,
+		Role:               req.Role,
+		DeepLinkURL:        req.DeepLinkURL,
+		OrgName:            orgName,
+		HasInviter:         req.InviterName != "",
+	}
+}
+
+// firstName returns the first word of a full name, or the whole string if no space.
+func firstName(fullName string) string {
+	if idx := strings.Index(fullName, " "); idx > 0 {
+		return fullName[:idx]
+	}
+	return fullName
+}
+
+// InviteEmailSubject renders the email subject line for an invite request.
+func InviteEmailSubject(req *model.SendInviteRequest) string {
+	data := buildTemplateData(req)
+	var buf bytes.Buffer
+	if err := subjectTmpl.Execute(&buf, data); err != nil {
+		if req.InviterName != "" {
+			return fmt.Sprintf("%s invited you to join %s", firstName(req.InviterName), req.ResourceName)
+		}
+		return fmt.Sprintf("You've been invited to join %s", req.ResourceName)
+	}
+	return buf.String()
+}
 
 // RenderInviteHTML renders the HTML body for an invite notification.
 func RenderInviteHTML(req *model.SendInviteRequest) string {
+	data := buildTemplateData(req)
 	var buf bytes.Buffer
-	if err := inviteHTMLTmpl.Execute(&buf, req); err != nil {
-		return fmt.Sprintf("<p>You have been added to %s.</p>", template.HTMLEscapeString(req.ResourceName))
+	if err := htmlTmpl.Execute(&buf, data); err != nil {
+		return fmt.Sprintf("<p>You have been invited to join %s.</p>", htmltmpl.HTMLEscapeString(req.ResourceName))
 	}
 	return buf.String()
 }
 
 // RenderInvitePlain renders the plain-text body for an invite notification.
 func RenderInvitePlain(req *model.SendInviteRequest) string {
-	inviterLine := ""
-	if req.InviterName != "" {
-		inviterLine = fmt.Sprintf("%s has added you to ", req.InviterName)
-	} else {
-		inviterLine = "You have been added to "
+	data := buildTemplateData(req)
+	var buf bytes.Buffer
+	if err := plainTmpl.Execute(&buf, data); err != nil {
+		return fmt.Sprintf("You have been invited to join %s.\n\n%s", req.ResourceName, req.DeepLinkURL)
 	}
-
-	return fmt.Sprintf(
-		"Hello %s,\n\n"+
-			"%s%s with %s access.\n\n"+
-			"Get started:\n%s\n\n"+
-			"If you did not expect this, you can safely ignore this email.\n\n"+
-			"— The LFX Team",
-		req.RecipientName,
-		inviterLine,
-		req.ResourceName,
-		req.Role,
-		req.DeepLinkURL,
-	)
+	return buf.String()
 }

@@ -12,7 +12,12 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
-	"github.com/linuxfoundation/lfx-v2-invite-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
+)
+
+const (
+	streamInviteRequests = "invite-requests"
+	consumerSendInvite   = "invite-service-send-invite"
 )
 
 // SendInviteHandler is the function signature for handling a decoded send-invite request.
@@ -41,11 +46,11 @@ func (c *Client) StartSendInviteConsumer(
 	handler SendInviteHandler,
 ) (func(), error) {
 	cfg := durableConsumerConfig(
-		constants.ConsumerNameInviteRequestsHandler,
-		[]string{constants.SendInviteSubject},
+		consumerSendInvite,
+		[]string{api.SendInviteSubject},
 	)
 
-	return c.ConsumeWithJetStream(ctx, constants.StreamNameInviteRequests, cfg,
+	return c.ConsumeWithJetStream(ctx, streamInviteRequests, cfg,
 		func(ctx context.Context, subject string, data []byte) error {
 			var req model.SendInviteRequest
 			if err := json.Unmarshal(data, &req); err != nil {

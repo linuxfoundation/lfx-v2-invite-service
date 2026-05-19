@@ -7,9 +7,9 @@ import (
 	"context"
 	"log/slog"
 
+	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
 	natsinfra "github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/nats"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/service"
-	"github.com/linuxfoundation/lfx-v2-invite-service/pkg/constants"
 )
 
 // NATSClient is the shared NATS connection used by all infrastructure adapters.
@@ -27,7 +27,7 @@ func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
 	}
 	NATSClient = nc
 
-	emailSender := natsinfra.NewNATSEmailSender(nc, constants.EmailServiceSendSubject)
+	emailSender := natsinfra.NewNATSEmailSender(nc, emailapi.SendEmailSubject)
 
 	NotificationSvc = service.NewNotificationService(
 		emailSender,

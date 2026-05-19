@@ -1,0 +1,1 @@
+{{if .HasInviter}}{{.InviterFirstName}} invited you to join {{.ResourceName}}{{else}}You've been invited to join {{.ResourceName}}{{end}}

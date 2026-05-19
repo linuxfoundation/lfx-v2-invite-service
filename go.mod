@@ -6,6 +6,7 @@ module github.com/linuxfoundation/lfx-v2-invite-service
 go 1.25.0
 
 require (
+	github.com/linuxfoundation/lfx-v2-email-service v0.1.0
 	github.com/nats-io/nats.go v1.47.0
 	github.com/remychantenay/slog-otel v1.3.4
 	go.opentelemetry.io/contrib/propagators/jaeger v1.43.0

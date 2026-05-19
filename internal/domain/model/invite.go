@@ -14,4 +14,7 @@ type SendInviteRequest struct {
 	ResourceName   string `json:"resource_name"`
 	Role           string `json:"role"`
 	DeepLinkURL    string `json:"deep_link_url,omitempty"`
+	// OrgName is the foundation or project name used in the email signature
+	// ("The X Team"). Defaults to "LFX" when empty.
+	OrgName string `json:"org_name,omitempty"`
 }

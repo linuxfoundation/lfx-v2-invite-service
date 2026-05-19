@@ -3,11 +3,7 @@
 
 package service
 
-import (
-	"os"
-
-	"github.com/linuxfoundation/lfx-v2-invite-service/pkg/constants"
-)
+import "os"
 
 // AppConfig holds all runtime configuration read from environment variables.
 type AppConfig struct {
@@ -17,12 +13,12 @@ type AppConfig struct {
 
 // AppConfigFromEnv reads AppConfig from environment variables, applying defaults where needed.
 func AppConfigFromEnv() AppConfig {
-	natsURL := os.Getenv(constants.NATSURLEnvKey)
+	natsURL := os.Getenv("NATS_URL")
 	if natsURL == "" {
 		natsURL = "nats://lfx-platform-nats.lfx.svc.cluster.local:4222"
 	}
 
-	lfxBaseURL := os.Getenv(constants.LFXBaseURLEnvKey)
+	lfxBaseURL := os.Getenv("LFX_BASE_URL")
 	if lfxBaseURL == "" {
 		lfxBaseURL = "https://lfx.linuxfoundation.org"
 	}

@@ -7,11 +7,23 @@
 // for inter-service use; all other types remain internal.
 package api
 
-// SendInviteSubject is the NATS subject resource services publish to when a
-// non-LFID user is added to a resource. The invite service consumes this
-// subject from the invite-requests JetStream stream, renders the invite email
-// template, and forwards to the email service for delivery.
-const SendInviteSubject = "lfx.invite-service.send_invite"
+// Subjects consumed by the invite service.
+const (
+	// SendInviteSubject is published by resource services when a non-LFID user is
+	// added to a resource. The invite service consumes this from the invite-requests
+	// JetStream stream, renders the email template, and forwards to the email service.
+	SendInviteSubject = "lfx.invite-service.send_invite"
+)
+
+// Subjects published by the invite service.
+const (
+	// InviteCreatedSubject is published when the invite service issues an invite token.
+	InviteCreatedSubject = "lfx.invite-service.invite.created"
+	// InviteAcceptedSubject is published when an invited user accepts their invite.
+	InviteAcceptedSubject = "lfx.invite-service.invite.accepted"
+	// InviteRevokedSubject is published when an invite is revoked.
+	InviteRevokedSubject = "lfx.invite-service.invite.revoked"
+)
 
 // InviteRole represents the access level to communicate to an invited user.
 type InviteRole string
@@ -34,4 +46,7 @@ type SendInviteRequest struct {
 	ResourceName   string `json:"resource_name"`
 	Role           string `json:"role"`
 	DeepLinkURL    string `json:"deep_link_url,omitempty"`
+	// OrgName is the foundation or project name used in the email signature
+	// ("The X Team"). Defaults to "LFX" when empty.
+	OrgName string `json:"org_name,omitempty"`
 }
