@@ -14,13 +14,13 @@ import (
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 )
 
-//go:embed invite_subject.gotemplate
+//go:embed templates/invite_subject.gotemplate
 var subjectTmplSrc string
 
-//go:embed invite_body.gohtml
+//go:embed templates/invite_body.gohtml
 var htmlTmplSrc string
 
-//go:embed invite_text.gotemplate
+//go:embed templates/invite_text.gotemplate
 var plainTmplSrc string
 
 var (
