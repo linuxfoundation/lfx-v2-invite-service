@@ -14,7 +14,7 @@ import (
 
 // LinkGenerator generates a signed invite link for a given recipient and destination.
 type LinkGenerator interface {
-	Generate(recipientEmail, destinationURL string) (string, error)
+	Generate(recipientEmail, destinationURL, resourceUID, role string) (string, error)
 }
 
 // NotificationConfig holds configuration for the NotificationService.
@@ -71,7 +71,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	}
 
 	// Generate a signed JWT invite link wrapping the destination URL.
-	inviteLink, linkErr := s.linkGenerator.Generate(req.RecipientEmail, destURL)
+	inviteLink, linkErr := s.linkGenerator.Generate(req.RecipientEmail, destURL, req.ResourceUID, req.Role)
 	if linkErr != nil {
 		slog.ErrorContext(ctx, "failed to generate invite link — falling back to plain URL",
 			"resource_uid", req.ResourceUID,

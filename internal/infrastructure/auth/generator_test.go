@@ -18,9 +18,11 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 	recipientEmail := "user@example.com"
 	returnURL := "https://lfx.example.com/project/overview?project=my-project"
+	resourceUID := "proj-abc123"
+	role := "Manage"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, err := gen.Generate(recipientEmail, returnURL)
+	link, err := gen.Generate(recipientEmail, returnURL, resourceUID, role)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -59,6 +61,12 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	if got := claims["return_url"]; got != returnURL {
 		t.Errorf("return_url claim = %v, want %v", got, returnURL)
 	}
+	if got := claims["resource_uid"]; got != resourceUID {
+		t.Errorf("resource_uid claim = %v, want %v", got, resourceUID)
+	}
+	if got := claims["role"]; got != role {
+		t.Errorf("role claim = %v, want %v", got, role)
+	}
 	if claims["jti"] == "" || claims["jti"] == nil {
 		t.Error("jti claim is missing or empty")
 	}
@@ -82,7 +90,7 @@ func TestLinkGenerator_Generate_WrongSecret(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, err := gen.Generate("user@example.com", "https://example.com/dest")
+	link, err := gen.Generate("user@example.com", "https://example.com/dest", "res-123", "Manage")
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -101,8 +109,8 @@ func TestLinkGenerator_Generate_UniqueJTI(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	link1, _ := gen.Generate("user@example.com", "https://example.com")
-	link2, _ := gen.Generate("user@example.com", "https://example.com")
+	link1, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage")
+	link2, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage")
 
 	if link1 == link2 {
 		t.Error("two Generate() calls for the same input produced identical links (jti must be unique)")

@@ -21,7 +21,7 @@ const (
 // noopLinkGenerator returns a fixed invite link without signing, for use in tests.
 type noopLinkGenerator struct{}
 
-func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL string) (string, error) {
+func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL, resourceUID, role string) (string, error) {
 	return testBaseURL + "/invite?token=test-token-for-" + recipientEmail, nil
 }
 
