@@ -5,42 +5,74 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
-	natsinfra "github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/nats"
+	"github.com/nats-io/nats.go"
+
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
-// subscription pairs a human-readable name with a function that starts a consumer
-// and returns a stop function.
-type subscription struct {
-	name  string
-	start func(ctx context.Context, nc *natsinfra.Client) (func(), error)
-}
-
-// subscriptions lists every NATS consumer the invite-service manages.
-// To add a new consumer, append an entry here — no other wiring required.
-var subscriptions = []subscription{
-	{
-		name: "send-invite",
-		start: func(ctx context.Context, nc *natsinfra.Client) (func(), error) {
-			return nc.StartSendInviteConsumer(ctx, NotificationSvc.HandleSendInvite)
-		},
-	},
-}
+const sendInviteQueueGroup = "invite-service-workers"
 
 // StartSubscriptions binds all NATS subscribers and returns their stop functions.
 func StartSubscriptions(ctx context.Context) ([]func(), error) {
-	var stops []func()
-
-	for _, sub := range subscriptions {
-		stop, err := sub.start(ctx, NATSClient)
-		if err != nil {
-			return stops, fmt.Errorf("start subscription %q: %w", sub.name, err)
+	stop, err := NATSClient.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(msg *nats.Msg) {
+		var req model.SendInviteRequest
+		if err := json.Unmarshal(msg.Data, &req); err != nil {
+			slog.ErrorContext(ctx, "send_invite: failed to unmarshal payload",
+				"subject", msg.Subject,
+				"error", err,
+			)
+			replyError(ctx, msg, "malformed request payload")
+			return
 		}
-		stops = append(stops, stop)
-		slog.InfoContext(ctx, "subscription started", "name", sub.name)
-	}
 
-	return stops, nil
+		inviteUID, handlerErr := NotificationSvc.HandleSendInvite(ctx, &req)
+
+		var resp api.SendInviteResponse
+		if handlerErr != nil {
+			slog.ErrorContext(ctx, "send_invite: handler error",
+				"resource_uid", req.ResourceUID,
+				"error", handlerErr,
+			)
+			resp.Error = handlerErr.Error()
+		} else {
+			resp.InviteUID = inviteUID
+		}
+
+		data, marshalErr := json.Marshal(resp)
+		if marshalErr != nil {
+			slog.ErrorContext(ctx, "send_invite: failed to marshal response", "error", marshalErr)
+			replyError(ctx, msg, "internal error marshalling response")
+			return
+		}
+		if replyErr := msg.Respond(data); replyErr != nil {
+			slog.ErrorContext(ctx, "send_invite: failed to send reply", "error", replyErr)
+			return
+		}
+		slog.InfoContext(ctx, "send_invite reply sent",
+			"resource_uid", req.ResourceUID,
+			"invite_uid", resp.InviteUID,
+			"error", resp.Error,
+		)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("start subscription %q: %w", "send-invite", err)
+	}
+	slog.InfoContext(ctx, "subscription started", "name", "send-invite")
+	return []func(){stop}, nil
+}
+
+// replyError sends a SendInviteResponse with only the Error field set.
+func replyError(ctx context.Context, msg *nats.Msg, errMsg string) {
+	if msg.Reply == "" {
+		return
+	}
+	data, _ := json.Marshal(api.SendInviteResponse{Error: errMsg})
+	if err := msg.Respond(data); err != nil {
+		slog.ErrorContext(ctx, "send_invite: failed to send error reply", "error", err)
+	}
 }
