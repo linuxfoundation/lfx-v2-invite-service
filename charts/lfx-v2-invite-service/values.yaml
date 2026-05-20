@@ -58,10 +58,11 @@ app:
   # LFX_ENVIRONMENT: prod=app.lfx.dev, stg=app.staging.lfx.dev, default=app.dev.lfx.dev
   selfServeBaseURL: ""
 
-  # inviteJWTSecret is the HMAC-SHA256 signing key for invite tokens.
-  # In production, inject this via a Kubernetes Secret and extraEnv — do not set here.
-  # Required: the service will not start without it.
-  inviteJWTSecret: ""
+  # jwtSecretName is the name of the Kubernetes Secret containing the HMAC-SHA256
+  # signing key for invite tokens. The Secret must have key: invite-jwt-secret.
+  # When externalSecretsOperator.enabled=true the ESO creates this secret automatically
+  # as {{ .Chart.Name }}. Set to "" to skip injection (local dev uses extraEnv instead).
+  jwtSecretName: "lfx-v2-invite-service"
 
   # extraEnv allows injecting additional environment variables into the container.
   # These are rendered before OTel variables.
@@ -100,3 +101,37 @@ app:
 nats:
   # url is the URL of the NATS server
   url: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
+
+# serviceAccount is the configuration for the Kubernetes ServiceAccount
+serviceAccount:
+  # create determines whether a ServiceAccount should be created
+  create: true
+  # name is the name of the ServiceAccount to create or reference
+  name: "lfx-v2-invite-service"
+  # annotations are additional annotations applied to the ServiceAccount.
+  # Use this to attach an EKS IRSA role ARN, e.g.:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::<account>:role/<role-name>
+  annotations: {}
+
+# global is configuration shared across chart dependencies
+global:
+  # awsRegion is the AWS region used by the External Secrets Operator SecretStore.
+  # Must be set when externalSecretsOperator.enabled=true.
+  awsRegion: ""
+
+# externalSecretsOperator configures ESO integration for pulling the invite JWT secret
+# from AWS Secrets Manager into a Kubernetes Secret.
+# When enabled, creates an ExternalSecret and SecretStore using IRSA for AWS auth.
+# Requires global.awsRegion and an IRSA-annotated ServiceAccount.
+externalSecretsOperator:
+  # enabled determines whether ESO resources (ExternalSecret + SecretStore) are created
+  enabled: false
+  externalSecret:
+    # refreshInterval is how often ESO polls AWS Secrets Manager for updates
+    refreshInterval: "10m"
+    # data maps AWS Secrets Manager fields to Kubernetes Secret keys
+    data:
+      - secretKey: invite-jwt-secret # checkov:skip=CKV_SECRET_6 not a base64 value
+        remoteRef:
+          key: cloud/invite-service/jwt
+          property: jwt_secret

@@ -39,9 +39,13 @@ spec:
               value: {{ .Values.app.selfServeBaseURL | quote }}
             - name: DEFAULT_INVITE_LINK_RETURN_URL
               value: {{ .Values.app.defaultReturnURL | quote }}
-            {{- if .Values.app.inviteJWTSecret }}
+            {{- if .Values.app.jwtSecretName }}
             - name: INVITE_JWT_SECRET
-              value: {{ .Values.app.inviteJWTSecret | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.app.jwtSecretName }}
+                  key: invite-jwt-secret
+                  optional: true
             {{- end }}
             - name: LOG_LEVEL
               value: {{ .Values.app.logLevel }}
