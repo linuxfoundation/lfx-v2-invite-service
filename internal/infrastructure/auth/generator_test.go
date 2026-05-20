@@ -73,9 +73,12 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	if claims["jti"] == "" || claims["jti"] == nil {
 		t.Error("jti claim is missing or empty")
 	}
-	// The returned inviteUID must match the jti embedded in the token.
+	// The returned inviteUID must match the jti and invite_uid embedded in the token.
 	if got := claims["jti"]; got != inviteUID {
 		t.Errorf("jti claim = %v, want returned inviteUID %v", got, inviteUID)
+	}
+	if got := claims["invite_uid"]; got != inviteUID {
+		t.Errorf("invite_uid claim = %v, want returned inviteUID %v", got, inviteUID)
 	}
 
 	// exp should be ~30 days from now (default TTL).

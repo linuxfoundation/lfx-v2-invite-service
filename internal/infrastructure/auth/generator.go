@@ -40,6 +40,7 @@ func (g *LinkGenerator) Generate(recipientEmail, returnURL, resourceUID, role st
 	claims := jwt.MapClaims{
 		"email":        recipientEmail,
 		"jti":          inviteUID,
+		"invite_uid":   inviteUID,
 		"return_url":   returnURL,
 		"resource_uid": resourceUID,
 		"role":         role,

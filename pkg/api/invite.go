@@ -21,8 +21,10 @@ const (
 const (
 	// InviteCreatedSubject is published when the invite service issues an invite token.
 	InviteCreatedSubject = "lfx.invite-service.invite.created"
-	// InviteAcceptedSubject is published when an invited user accepts their invite.
-	InviteAcceptedSubject = "lfx.invite-service.invite.accepted"
+	// InviteAcceptedSubject is published by the LFX self-serve web app once a user
+	// completes the invite acceptance flow (JWT validation + login). Backend services
+	// subscribe to this subject to grant access and clean up pending invite state.
+	InviteAcceptedSubject = "lfx.invite.accepted"
 	// InviteRevokedSubject is published when an invite is revoked.
 	InviteRevokedSubject = "lfx.invite-service.invite.revoked"
 )
