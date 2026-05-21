@@ -115,7 +115,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	if err := s.emailSender.SendNotification(ctx, req); err != nil {
 		slog.ErrorContext(ctx, "failed to send invite notification",
 			"resource_uid", req.ResourceUID,
-			"recipient_email", req.RecipientEmail,
+			"recipient_email", redactEmail(req.RecipientEmail),
 			"error", err,
 		)
 		s.auditNotification(ctx, &model.NotificationAuditEntry{
@@ -130,7 +130,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 
 	slog.InfoContext(ctx, "invite notification sent",
 		"resource_uid", req.ResourceUID,
-		"recipient_email", req.RecipientEmail,
+		"recipient_email", redactEmail(req.RecipientEmail),
 		"invite_uid", inviteUID,
 		"expires_at", expiresAt,
 	)
@@ -172,6 +172,16 @@ func validateReturnURL(rawURL string, allowedHosts []string) error {
 	return fmt.Errorf("return_url host %q is not in the allowed list", host)
 }
 
+// redactEmail masks the local part of an email address for safe logging.
+// "alice@example.com" → "a***@example.com"
+func redactEmail(email string) string {
+	at := strings.Index(email, "@")
+	if at <= 0 {
+		return "***"
+	}
+	return email[:1] + "***" + email[at:]
+}
+
 // matchHost reports whether host matches pattern. A pattern starting with "*."
 // matches any subdomain of the remainder (e.g. "*.lfx.dev" matches "app.lfx.dev"
 // and "a.b.lfx.dev"). Otherwise an exact match is required.
@@ -188,7 +198,7 @@ func (s *NotificationService) auditNotification(ctx context.Context, entry *mode
 	slog.InfoContext(ctx, "notification_audit",
 		"resource_uid", entry.ResourceUID,
 		"recipient_lfid", entry.RecipientLFID,
-		"recipient_email", entry.RecipientEmail,
+		"recipient_email", redactEmail(entry.RecipientEmail),
 		"role", entry.Role,
 		"delivery_state", entry.DeliveryState,
 		"error_message", entry.ErrorMessage,

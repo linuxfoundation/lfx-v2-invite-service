@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
@@ -58,7 +59,7 @@ func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendI
 
 	if len(reply) == 0 {
 		slog.DebugContext(ctx, "email service accepted message",
-			"recipient", req.RecipientEmail,
+			"recipient", redactEmail(req.RecipientEmail),
 			"resource_uid", req.ResourceUID,
 		)
 		return nil
@@ -75,4 +76,14 @@ func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendI
 	}
 
 	return nil
+}
+
+// redactEmail masks the local part of an email address for safe logging.
+// "alice@example.com" → "a***@example.com"
+func redactEmail(email string) string {
+	at := strings.Index(email, "@")
+	if at <= 0 {
+		return "***"
+	}
+	return email[:1] + "***" + email[at:]
 }
