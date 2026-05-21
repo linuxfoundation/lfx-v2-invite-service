@@ -4,7 +4,7 @@
 # image is the configuration for the container image
 image:
   # repository is the container image repository
-  repository: ghcr.io/linuxfoundation/lfx-v2-invite-service/invite-service
+  repository: ghcr.io/linuxfoundation/lfx-v2-invite-service/invite-api
   # tag is the container image tag (overrides appVersion from Chart.yaml)
   tag: ""
   # pullPolicy is the image pull policy
