@@ -72,17 +72,27 @@ func firstName(fullName string) string {
 	return fullName
 }
 
+// sanitizeSingleLine strips CR, LF, and NUL bytes and caps length to guard against
+// email header injection when the result is used as a mail Subject.
+func sanitizeSingleLine(s string) string {
+	s = strings.NewReplacer("\r", " ", "\n", " ", "\x00", "").Replace(s)
+	if len(s) > 256 {
+		s = s[:256]
+	}
+	return s
+}
+
 // InviteEmailSubject renders the email subject line for an invite request.
 func InviteEmailSubject(req *model.SendInviteRequest) string {
 	data := buildTemplateData(req)
 	var buf bytes.Buffer
 	if err := subjectTmpl.Execute(&buf, data); err != nil {
 		if req.InviterName != "" {
-			return fmt.Sprintf("%s invited you to join %s", firstName(req.InviterName), req.ResourceName)
+			return sanitizeSingleLine(fmt.Sprintf("%s invited you to join %s", firstName(req.InviterName), req.ResourceName))
 		}
-		return fmt.Sprintf("You've been invited to join %s", req.ResourceName)
+		return sanitizeSingleLine(fmt.Sprintf("You've been invited to join %s", req.ResourceName))
 	}
-	return buf.String()
+	return sanitizeSingleLine(buf.String())
 }
 
 // RenderInviteHTML renders the HTML body for an invite notification.

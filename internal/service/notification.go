@@ -5,12 +5,23 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/mail"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
+)
+
+// Stable error sentinels exposed to the transport layer so it can map handler
+// errors to opaque codes without leaking internal details to callers.
+var (
+	// ErrInvalidRequest is returned when the caller's SendInviteRequest fails validation.
+	ErrInvalidRequest = errors.New("invalid_request")
+	// ErrEmailDispatchFailed is returned when the email service cannot deliver the invite.
+	ErrEmailDispatchFailed = errors.New("email_dispatch_failed")
 )
 
 // LinkGenerator generates a signed invite link for a given recipient and destination.
@@ -53,12 +64,19 @@ func NewNotificationService(email port.EmailSender, linkGen LinkGenerator, cfg N
 // caller can store it. Returns an error if the email could not be sent.
 func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.SendInviteRequest) (SendInviteResult, error) {
 	if req.RecipientEmail == "" {
-		return SendInviteResult{}, fmt.Errorf("send_invite request for resource %s has no recipient email", req.ResourceUID)
+		return SendInviteResult{}, fmt.Errorf("%w: no recipient email for resource %s", ErrInvalidRequest, req.ResourceUID)
+	}
+
+	// Validate and canonicalize the recipient email to prevent header injection /
+	// multiple-address smuggling before the address flows into the email envelope.
+	addr, mailErr := mail.ParseAddress(req.RecipientEmail)
+	if mailErr != nil {
+		return SendInviteResult{}, fmt.Errorf("%w: invalid recipient_email %q: %w", ErrInvalidRequest, req.RecipientEmail, mailErr)
 	}
 
 	role := model.Role(req.Role)
 	if role != model.RoleManage && role != model.RoleView {
-		return SendInviteResult{}, fmt.Errorf("send_invite request for resource %s has unrecognised role %q", req.ResourceUID, req.Role)
+		return SendInviteResult{}, fmt.Errorf("%w: unrecognised role %q for resource %s", ErrInvalidRequest, req.Role, req.ResourceUID)
 	}
 
 	// Determine destination URL — use DefaultReturnURL as fallback when not supplied.
@@ -68,19 +86,18 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	}
 
 	// Generate a signed JWT invite link wrapping the destination URL.
-	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(req.RecipientEmail, destURL, req.ResourceUID, req.Role, req.ExpirationDays)
+	// Fail closed: JWT signing failure is a hard error — silently falling back to a
+	// plain URL would deliver an LFX-branded email pointing to an unsigned, unrevokable link.
+	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(addr.Address, destURL, req.ResourceUID, req.Role, req.ExpirationDays)
 	if linkErr != nil {
-		slog.ErrorContext(ctx, "failed to generate invite link — falling back to plain URL",
-			"resource_uid", req.ResourceUID,
-			"error", linkErr,
-		)
-		inviteLink = destURL
+		return SendInviteResult{}, fmt.Errorf("generate invite link for resource %s: %w", req.ResourceUID, linkErr)
 	}
 
-	// Shallow-copy the request so we don't mutate the caller's struct.
-	reqWithLink := *req
-	reqWithLink.ReturnURL = inviteLink
-	req = &reqWithLink
+	// Shallow-copy with canonical email and signed link so we don't mutate the caller's struct.
+	reqCopy := *req
+	reqCopy.RecipientEmail = addr.Address
+	reqCopy.ReturnURL = inviteLink
+	req = &reqCopy
 
 	if err := s.emailSender.SendNotification(ctx, req); err != nil {
 		slog.ErrorContext(ctx, "failed to send invite notification",
@@ -95,7 +112,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 			DeliveryState:  model.DeliveryStateFailed,
 			ErrorMessage:   err.Error(),
 		})
-		return SendInviteResult{}, fmt.Errorf("send invite notification for resource %s: %w", req.ResourceUID, err)
+		return SendInviteResult{}, fmt.Errorf("%w: send invite notification for resource %s: %w", ErrEmailDispatchFailed, req.ResourceUID, err)
 	}
 
 	slog.InfoContext(ctx, "invite notification sent",

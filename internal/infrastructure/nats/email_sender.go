@@ -46,9 +46,8 @@ func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendI
 		return newUnexpected("failed to marshal email request", err)
 	}
 
-	// Enforce a hard deadline so the caller is never blocked indefinitely if the
-	// email service is down or slow. The JetStream message handler context has no
-	// deadline by default.
+	// Enforce a tighter deadline on the email service request independently of the
+	// outer per-message context so email latency stays bounded even under slow replies.
 	reqCtx, cancel := context.WithTimeout(ctx, emailServiceTimeout)
 	defer cancel()
 
@@ -65,10 +64,14 @@ func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendI
 		return nil
 	}
 
+	// Treat any non-empty reply that fails to parse as an error — a corrupt reply
+	// must not be silently treated as success.
 	var errResp emailapi.SendEmailErrorResponse
-	if jsonErr := json.Unmarshal(reply, &errResp); jsonErr == nil && errResp.Error != "" {
-		return newServiceUnavailable("email service returned error",
-			errors.New(errResp.Error))
+	if jsonErr := json.Unmarshal(reply, &errResp); jsonErr != nil {
+		return newUnexpected("malformed email-service reply", jsonErr)
+	}
+	if errResp.Error != "" {
+		return newServiceUnavailable("email service returned error", errors.New(errResp.Error))
 	}
 
 	return nil

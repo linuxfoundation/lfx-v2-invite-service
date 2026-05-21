@@ -1,5 +1,6 @@
 # Copyright The Linux Foundation and each contributor to LFX.
 # SPDX-License-Identifier: MIT
+{{- if .Values.service.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -16,3 +17,4 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: web
       protocol: TCP
+{{- end }}

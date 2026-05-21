@@ -37,8 +37,11 @@ resources:
     cpu: 25m
     memory: 32Mi
 
-# service is the configuration for the Kubernetes Service
+# service is the configuration for the Kubernetes Service.
+# enabled is false because the service has no HTTP server yet; enable when the
+# /invite/:uuid acceptance endpoint is introduced.
 service:
+  enabled: false
   # port is the service port (used for future health endpoints)
   port: 8080
 
@@ -96,6 +99,17 @@ app:
     # propagators specifies the trace context propagators to use.
     # Comma-separated list of: "tracecontext", "baggage", "jaeger"
     propagators: "tracecontext,baggage,jaeger"
+
+# networkPolicy controls the Kubernetes NetworkPolicy for this workload.
+# Restricts egress to NATS and OTel only; denies all ingress (no HTTP server yet).
+networkPolicy:
+  enabled: true
+  # natsPort is the TCP port of the NATS broker.
+  natsPort: 4222
+  # otelGRPCPort is the gRPC port of the OpenTelemetry collector.
+  otelGRPCPort: 4317
+  # otelHTTPPort is the HTTP port of the OpenTelemetry collector.
+  otelHTTPPort: 4318
 
 # nats is the configuration for NATS connectivity
 nats:

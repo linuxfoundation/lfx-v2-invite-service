@@ -1,0 +1,45 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+#
+# Threat model note: lfx.invite-service.send_invite is plain core NATS with no
+# per-caller authentication. Any pod that can reach the NATS broker can publish
+# a SendInviteRequest and cause a real LFX-branded email to be dispatched.
+# This NetworkPolicy limits egress to the known required endpoints (NATS + OTel)
+# as a near-term defence-in-depth measure. Long-term, NATS subject ACLs or a
+# signed/authenticated request envelope should be introduced — tracked as a
+# follow-up ticket.
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    # DNS resolution
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # NATS broker
+    - ports:
+        - port: {{ .Values.networkPolicy.natsPort }}
+          protocol: TCP
+    # OpenTelemetry collector (gRPC and HTTP)
+    - ports:
+        - port: {{ .Values.networkPolicy.otelGRPCPort }}
+          protocol: TCP
+        - port: {{ .Values.networkPolicy.otelHTTPPort }}
+          protocol: TCP
+{{- end }}
