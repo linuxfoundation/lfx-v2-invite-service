@@ -10,15 +10,53 @@ Handles invite email delivery for the LFX platform. When a non-LFID user is adde
 
 ## NATS Contract
 
-### Subjects consumed
+**Subject:** `lfx.invite-service.send_invite`
+**Direction:** Request/reply
+**Queue group:** `invite-service-workers`
 
-| Subject | Direction | Description |
-| ------- | --------- | ----------- |
-| `lfx.invite-service.send_invite` | Request/reply | Send a `SendInviteRequest` and receive a `SendInviteResponse`. The invite service renders the invite email template and forwards to the email service for delivery. |
+### Via NATS
 
-### Request payload — `SendInviteRequest`
+```bash
+nats req lfx.invite-service.send_invite \
+  '{"recipient_email":"user@example.com","recipient_name":"Jane Doe","resource_uid":"resource-123","resource_name":"My Resource","role":"Manage","resource_type":"project"}'
+```
 
-Import from `github.com/linuxfoundation/lfx-v2-invite-service/pkg/api`.
+**Success response:**
+```json
+{ "invite": { "uid": "abc123", "email": "user@example.com", "expires_at": "2026-06-20T..." } }
+```
+
+**Error response:**
+```json
+{ "error": "invalid_request" }
+```
+
+### Via Go
+
+Import `pkg/api` for the subject constant and wire types:
+
+```go
+import inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
+
+req := inviteapi.SendInviteRequest{
+    RecipientEmail: "user@example.com",
+    RecipientName:  "Jane Doe",
+    InviterName:    "John Smith",
+    ResourceUID:    "resource-123",
+    ResourceName:   "My Resource",
+    Role:           string(inviteapi.InviteRoleManage),
+    ResourceType:   "project",
+}
+data, _ := json.Marshal(req)
+
+msg, err := nc.Request(inviteapi.SendInviteSubject, data, 10*time.Second)
+
+var resp inviteapi.SendInviteResponse
+json.Unmarshal(msg.Data, &resp)
+// resp.Invite.UID on success, resp.Error on failure
+```
+
+### Request fields — `SendInviteRequest`
 
 | Field | Type | Required | Description |
 | ----- | ---- | :------: | ----------- |
@@ -33,19 +71,7 @@ Import from `github.com/linuxfoundation/lfx-v2-invite-service/pkg/api`.
 | `org_name` | `string` | | Foundation or project name for the email signature. Defaults to `"LFX"`. |
 | `expiration_days` | `int` | | Days the invite link is valid. Defaults to 30, max 90. |
 
-### Response payload — `SendInviteResponse`
-
-`Invite` is set on success; `Error` is set on failure.
-
-```json
-// success
-{ "invite": { "uid": "abc123", "email": "user@example.com", "expires_at": "2026-06-20T..." } }
-
-// failure
-{ "error": "invalid_request" }
-```
-
-Error codes:
+### Error codes
 
 | Code | Cause |
 | ---- | ----- |
@@ -128,40 +154,6 @@ Standard `OTEL_*` SDK env vars (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAM
 - **NATS-only today** — no HTTP server. An HTTP server will be added when the `/invite/:uuid` acceptance endpoint is needed.
 - **Template ownership** — the invite service owns and renders the email template (HTML + plaintext + subject line). The email service (`lfx-v2-email-service`) handles SMTP delivery only. Callers publish a structured `SendInviteRequest` — no pre-rendered HTML required.
 - **Signed return URLs** — `INVITE_JWT_SECRET` signs the return URL embedded in the invite email. JWT signing failure fails the entire request rather than falling back to an unsigned URL; emailing an LFX-branded link to an unsigned, unrevokable destination would be a security regression.
-
-## Calling From Another Service
-
-```go
-import (
-    "encoding/json"
-    "time"
-
-    inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
-)
-
-req := inviteapi.SendInviteRequest{
-    RecipientEmail: "user@example.com",
-    RecipientName:  "Jane Doe",
-    InviterName:    "John Smith",
-    ResourceUID:    "resource-123",
-    ResourceName:   "My Resource",
-    Role:           string(inviteapi.InviteRoleManage),
-    ResourceType:   "project",
-}
-data, _ := json.Marshal(req)
-
-msg, err := nc.Request(inviteapi.SendInviteSubject, data, 10*time.Second)
-if err != nil {
-    // NATS timeout or no responders
-}
-
-var resp inviteapi.SendInviteResponse
-json.Unmarshal(msg.Data, &resp)
-if resp.Error != "" {
-    // handle error code (see error code table above)
-}
-// resp.Invite.UID is the invite UUID
-```
 
 ## Development
 
