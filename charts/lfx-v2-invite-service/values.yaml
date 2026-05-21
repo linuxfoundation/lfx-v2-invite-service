@@ -61,6 +61,12 @@ app:
   # LFX_ENVIRONMENT: prod=app.lfx.dev, stg=app.staging.lfx.dev, default=app.dev.lfx.dev
   selfServeBaseURL: ""
 
+  # allowedReturnURLHosts is a comma-separated list of host patterns permitted in the
+  # return_url field of a SendInviteRequest. Wildcards match any subdomain
+  # (e.g. "*.lfx.dev" matches "app.lfx.dev" and "app.staging.lfx.dev").
+  # Leave empty to use the default LFX-owned domains.
+  allowedReturnURLHosts: "*.lfx.dev,*.linuxfoundation.org"
+
   # jwtSecretName is the name of the Kubernetes Secret containing the HMAC-SHA256
   # signing key for invite tokens. The Secret must have key: invite-jwt-secret.
   # When externalSecretsOperator.enabled=true the ESO creates this secret automatically

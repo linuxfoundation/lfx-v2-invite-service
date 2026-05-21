@@ -3,14 +3,18 @@
 
 package service
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 // AppConfig holds all runtime configuration read from environment variables.
 type AppConfig struct {
-	NATSURL          string
-	DefaultReturnURL string
-	InviteJWTSecret  string
-	SelfServeBaseURL string
+	NATSURL               string
+	DefaultReturnURL      string
+	InviteJWTSecret       string
+	SelfServeBaseURL      string
+	AllowedReturnURLHosts []string
 }
 
 // AppConfigFromEnv reads AppConfig from environment variables, applying defaults where needed.
@@ -37,10 +41,29 @@ func AppConfigFromEnv() AppConfig {
 		defaultReturnURL = selfServeBaseURL
 	}
 
+	allowedHosts := parseAllowedReturnURLHosts(os.Getenv("ALLOWED_RETURN_URL_HOSTS"))
+
 	return AppConfig{
-		NATSURL:          natsURL,
-		DefaultReturnURL: defaultReturnURL,
-		InviteJWTSecret:  os.Getenv("INVITE_JWT_SECRET"),
-		SelfServeBaseURL: selfServeBaseURL,
+		NATSURL:               natsURL,
+		DefaultReturnURL:      defaultReturnURL,
+		InviteJWTSecret:       os.Getenv("INVITE_JWT_SECRET"),
+		SelfServeBaseURL:      selfServeBaseURL,
+		AllowedReturnURLHosts: allowedHosts,
 	}
+}
+
+// parseAllowedReturnURLHosts splits a comma-separated list of host patterns,
+// defaulting to the LFX-owned domains when the env var is unset.
+func parseAllowedReturnURLHosts(raw string) []string {
+	if raw == "" {
+		return []string{"*.lfx.dev", "*.linuxfoundation.org"}
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if h := strings.TrimSpace(p); h != "" {
+			out = append(out, h)
+		}
+	}
+	return out
 }

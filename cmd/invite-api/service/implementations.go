@@ -43,7 +43,8 @@ func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
 		emailSender,
 		linkGen,
 		service.NotificationConfig{
-			DefaultReturnURL: cfg.DefaultReturnURL,
+			DefaultReturnURL:      cfg.DefaultReturnURL,
+			AllowedReturnURLHosts: cfg.AllowedReturnURLHosts,
 		},
 	)
 

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/mail"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
@@ -34,6 +36,9 @@ type LinkGenerator interface {
 // NotificationConfig holds configuration for the NotificationService.
 type NotificationConfig struct {
 	DefaultReturnURL string
+	// AllowedReturnURLHosts is the list of host patterns (e.g. "*.lfx.dev") that
+	// a caller-supplied return_url must match. An empty slice disables the check.
+	AllowedReturnURLHosts []string
 }
 
 // SendInviteResult carries the data returned by the invite service to the caller.
@@ -77,6 +82,14 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	role := model.Role(req.Role)
 	if role != model.RoleManage && role != model.RoleView {
 		return SendInviteResult{}, fmt.Errorf("%w: unrecognised role %q for resource %s", ErrInvalidRequest, req.Role, req.ResourceUID)
+	}
+
+	// Validate the caller-supplied return_url against the allowlist before using it.
+	// The default fallback is always a known-good LFX URL, so only the caller value needs checking.
+	if req.ReturnURL != "" {
+		if err := validateReturnURL(req.ReturnURL, s.config.AllowedReturnURLHosts); err != nil {
+			return SendInviteResult{}, fmt.Errorf("%w: %w", ErrInvalidRequest, err)
+		}
 	}
 
 	// Determine destination URL — use DefaultReturnURL as fallback when not supplied.
@@ -133,6 +146,40 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		RecipientEmail: req.RecipientEmail,
 		ExpiresAt:      expiresAt,
 	}, nil
+}
+
+// validateReturnURL checks that rawURL is an https URL whose host matches at least one
+// pattern in allowedHosts. A wildcard pattern "*.example.com" matches any subdomain of
+// example.com (including multi-level, e.g. a.b.example.com). An empty allowedHosts
+// slice disables enforcement.
+func validateReturnURL(rawURL string, allowedHosts []string) error {
+	if len(allowedHosts) == 0 {
+		return nil
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid return_url %q: %w", rawURL, err)
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("return_url must use https scheme, got %q", u.Scheme)
+	}
+	host := u.Hostname()
+	for _, pattern := range allowedHosts {
+		if matchHost(host, pattern) {
+			return nil
+		}
+	}
+	return fmt.Errorf("return_url host %q is not in the allowed list", host)
+}
+
+// matchHost reports whether host matches pattern. A pattern starting with "*."
+// matches any subdomain of the remainder (e.g. "*.lfx.dev" matches "app.lfx.dev"
+// and "a.b.lfx.dev"). Otherwise an exact match is required.
+func matchHost(host, pattern string) bool {
+	if strings.HasPrefix(pattern, "*.") {
+		return strings.HasSuffix(host, pattern[1:]) // pattern[1:] == ".lfx.dev"
+	}
+	return host == pattern
 }
 
 // auditNotification writes a structured audit log entry. In Phase 1 this is a structured

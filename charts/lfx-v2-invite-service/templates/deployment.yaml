@@ -48,6 +48,11 @@ spec:
               value: {{ .Values.app.selfServeBaseURL | quote }}
             - name: DEFAULT_INVITE_LINK_RETURN_URL
               value: {{ .Values.app.defaultReturnURL | quote }}
+            {{- $allowedHosts := .Values.app.allowedReturnURLHosts | toString | trim }}
+            {{- if ne $allowedHosts "" }}
+            - name: ALLOWED_RETURN_URL_HOSTS
+              value: {{ $allowedHosts | quote }}
+            {{- end }}
             {{- if .Values.app.jwtSecretName }}
             - name: INVITE_JWT_SECRET
               valueFrom:
