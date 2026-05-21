@@ -1,0 +1,18 @@
+Hi {{.RecipientFirstName}},
+
+{{if .HasInviter}}{{.InviterFullName}} invited you to join {{.ResourceName}} on LFX with the {{.Role}} role.{{else}}You have been invited to join {{.ResourceName}} on LFX with the {{.Role}} role.{{end}}
+
+You'll need an LFX account to access the {{.ResourceType}}.
+
+Getting started takes about a minute:
+  1. Click the link below to accept the invitation
+  2. Create your LFX account (or sign in if you have a Linux Foundation ID)
+  3. You'll be taken straight to the {{.ResourceName}} dashboard
+
+Accept invitation & create account:
+{{.ReturnURL}}
+
+Thanks,
+The {{.OrgName}} Team
+
+If you did not expect this email, you can safely ignore it.

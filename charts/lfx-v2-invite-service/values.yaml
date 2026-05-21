@@ -1,0 +1,157 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+
+# image is the configuration for the container image
+image:
+  # repository is the container image repository
+  repository: ghcr.io/linuxfoundation/lfx-v2-invite-service/invite-service
+  # tag is the container image tag (overrides appVersion from Chart.yaml)
+  tag: ""
+  # pullPolicy is the image pull policy
+  pullPolicy: IfNotPresent
+
+# replicaCount is the number of replicas for the deployment
+replicaCount: 1
+
+# podAnnotations are additional annotations applied to the pod template
+podAnnotations: {}
+
+# podLabels are additional labels applied to the pod template
+podLabels: {}
+
+# podDisruptionBudget configures a PodDisruptionBudget for the deployment.
+# Only one of minAvailable or maxUnavailable may be set.
+podDisruptionBudget:
+  # enabled controls whether a PodDisruptionBudget is created
+  enabled: false
+  # minAvailable: 1
+
+# resources is the configuration for container resource requests and limits
+resources:
+  # limits is the maximum amount of resources allowed
+  limits:
+    cpu: 100m
+    memory: 64Mi
+  # requests is the minimum amount of resources required
+  requests:
+    cpu: 25m
+    memory: 32Mi
+
+# service is the configuration for the Kubernetes Service.
+# enabled is false because the service has no HTTP server yet; enable when the
+# /invite/:uuid acceptance endpoint is introduced.
+service:
+  enabled: false
+  # port is the service port (used for future health endpoints)
+  port: 8080
+
+# app is the configuration for the application
+app:
+  # logLevel is the log level (debug, info, warn, error)
+  logLevel: info
+  # defaultReturnURL is the fallback return URL for invite links when the caller
+  # omits return_url in the SendInviteRequest. Leave empty to default to
+  # selfServeBaseURL (auto-selected by LFX_ENVIRONMENT).
+  defaultReturnURL: ""
+
+  # selfServeBaseURL is the base URL of the LFX Self-Serve web app used to build
+  # the accept-invite link. The web app validates the token, forces login, broadcasts
+  # invite acceptance, and redirects to the destination URL.
+  # Overrides LFX_SELF_SERVE_BASE_URL; if unset the service auto-selects based on
+  # LFX_ENVIRONMENT: prod=app.lfx.dev, stg=app.staging.lfx.dev, default=app.dev.lfx.dev
+  selfServeBaseURL: ""
+
+  # allowedReturnURLHosts is a comma-separated list of host patterns permitted in the
+  # return_url field of a SendInviteRequest. Wildcards match any subdomain
+  # (e.g. "*.lfx.dev" matches "app.lfx.dev" and "app.staging.lfx.dev").
+  # Leave empty to use the default LFX-owned domains.
+  allowedReturnURLHosts: "*.lfx.dev,*.linuxfoundation.org"
+
+  # jwtSecretName is the name of the Kubernetes Secret containing the HMAC-SHA256
+  # signing key for invite tokens. The Secret must have key: invite-jwt-secret.
+  # When externalSecretsOperator.enabled=true the ESO creates this secret automatically
+  # as {{ .Chart.Name }}. Set to "" to skip injection (local dev uses extraEnv instead).
+  jwtSecretName: "lfx-v2-invite-service"
+
+  # extraEnv allows injecting additional environment variables into the container.
+  # These are rendered before OTel variables.
+  extraEnv: []
+
+  # otel is the configuration for OpenTelemetry observability
+  otel:
+    # serviceName is the service name for OTel resource identification
+    # (default: "lfx-v2-invite-service")
+    serviceName: ""
+    # protocol specifies the OTLP protocol: "grpc" or "http"
+    # (default: "grpc")
+    protocol: "grpc"
+    # endpoint is the OTLP collector endpoint.
+    # For gRPC: typically "host:4317", for HTTP: typically "host:4318"
+    endpoint: ""
+    # insecure disables TLS for the OTLP connection.
+    # Set to "true" for in-cluster communication without TLS.
+    insecure: "false"
+    # tracesExporter specifies the traces exporter: "otlp" or "none"
+    # (default: "none")
+    tracesExporter: "none"
+    # tracesSampleRatio specifies the sampling ratio for traces (0.0 to 1.0)
+    tracesSampleRatio: "1.0"
+    # metricsExporter specifies the metrics exporter: "otlp" or "none"
+    # (default: "none")
+    metricsExporter: "none"
+    # logsExporter specifies the logs exporter: "otlp" or "none"
+    # (default: "none")
+    logsExporter: "none"
+    # propagators specifies the trace context propagators to use.
+    # Comma-separated list of: "tracecontext", "baggage", "jaeger"
+    propagators: "tracecontext,baggage,jaeger"
+
+# networkPolicy controls the Kubernetes NetworkPolicy for this workload.
+# Restricts egress to NATS and OTel only; denies all ingress (no HTTP server yet).
+networkPolicy:
+  enabled: true
+  # natsPort is the TCP port of the NATS broker.
+  natsPort: 4222
+  # otelGRPCPort is the gRPC port of the OpenTelemetry collector.
+  otelGRPCPort: 4317
+  # otelHTTPPort is the HTTP port of the OpenTelemetry collector.
+  otelHTTPPort: 4318
+
+# nats is the configuration for NATS connectivity
+nats:
+  # url is the URL of the NATS server
+  url: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
+
+# serviceAccount is the configuration for the Kubernetes ServiceAccount
+serviceAccount:
+  # create determines whether a ServiceAccount should be created
+  create: true
+  # name is the name of the ServiceAccount to create or reference
+  name: "lfx-v2-invite-service"
+  # annotations are additional annotations applied to the ServiceAccount.
+  # Use this to attach an EKS IRSA role ARN, e.g.:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::<account>:role/<role-name>
+  annotations: {}
+
+# global is configuration shared across chart dependencies
+global:
+  # awsRegion is the AWS region used by the External Secrets Operator SecretStore.
+  # Must be set when externalSecretsOperator.enabled=true.
+  awsRegion: ""
+
+# externalSecretsOperator configures ESO integration for pulling the invite JWT secret
+# from AWS Secrets Manager into a Kubernetes Secret.
+# When enabled, creates an ExternalSecret and SecretStore using IRSA for AWS auth.
+# Requires global.awsRegion and an IRSA-annotated ServiceAccount.
+externalSecretsOperator:
+  # enabled determines whether ESO resources (ExternalSecret + SecretStore) are created
+  enabled: false
+  externalSecret:
+    # refreshInterval is how often ESO polls AWS Secrets Manager for updates
+    refreshInterval: "10m"
+    # data maps AWS Secrets Manager fields to Kubernetes Secret keys
+    data:
+      - secretKey: invite-jwt-secret # checkov:skip=CKV_SECRET_6 not a base64 value
+        remoteRef:
+          key: cloud/invite-service/jwt
+          property: jwt_secret

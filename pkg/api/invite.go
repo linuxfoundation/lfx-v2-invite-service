@@ -1,0 +1,80 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+// Package api contains the public contract types and NATS subjects that
+// resource services (project-service, committee-service, etc.) use to
+// interact with the invite service. These are the only exported types intended
+// for inter-service use; all other types remain internal.
+package api
+
+import "time"
+
+// Subjects consumed by the invite service.
+const (
+	// SendInviteSubject is used for NATS request/reply by resource services when a
+	// non-LFID user is added to a resource. The invite service renders the email
+	// template, forwards to the email service, and replies with SendInviteResponse.
+	SendInviteSubject = "lfx.invite-service.send_invite"
+)
+
+// Subjects published by the invite service.
+const (
+	// InviteCreatedSubject is published when the invite service issues an invite token.
+	InviteCreatedSubject = "lfx.invite-service.invite.created"
+	// InviteAcceptedSubject is published by the LFX self-serve web app once a user
+	// completes the invite acceptance flow (JWT validation + login). Backend services
+	// subscribe to this subject to grant access and clean up pending invite state.
+	// Note: this subject intentionally uses the "lfx.invite.*" namespace rather than
+	// "lfx.invite-service.invite.*" because the publisher is the self-serve web app,
+	// not the invite service. The constant lives here as the authoritative contract location.
+	InviteAcceptedSubject = "lfx.invite.accepted"
+	// InviteRevokedSubject is published when an invite is revoked.
+	InviteRevokedSubject = "lfx.invite-service.invite.revoked"
+)
+
+// InviteRole represents the access level to communicate to an invited user.
+type InviteRole string
+
+const (
+	// InviteRoleManage maps to the writers/meeting-coordinators permission set.
+	InviteRoleManage InviteRole = "Manage"
+	// InviteRoleView maps to the auditors permission set.
+	InviteRoleView InviteRole = "View"
+)
+
+// InviteData holds the invite metadata returned on a successful send_invite reply.
+type InviteData struct {
+	UID       string    `json:"uid"`
+	Email     string    `json:"email"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// SendInviteResponse is the reply payload returned by the invite service on
+// SendInviteSubject. Invite is set on success; Error is set on failure.
+type SendInviteResponse struct {
+	Invite *InviteData `json:"invite,omitempty"`
+	Error  string      `json:"error,omitempty"`
+}
+
+// SendInviteRequest is the NATS payload published on SendInviteSubject by
+// resource services to request that the invite service sends an invite email
+// to a user who does not yet have an LFID.
+type SendInviteRequest struct {
+	RecipientEmail string `json:"recipient_email"`
+	RecipientName  string `json:"recipient_name"`
+	InviterName    string `json:"inviter_name,omitempty"`
+	ResourceUID    string `json:"resource_uid"`
+	ResourceName   string `json:"resource_name"`
+	Role           string `json:"role"`
+	ReturnURL      string `json:"return_url,omitempty"`
+	// ResourceType is the kind of resource the recipient is being invited to
+	// (e.g. "project", "group", "meeting"). Used in the invite email body.
+	// Defaults to "resource" when empty.
+	ResourceType string `json:"resource_type,omitempty"`
+	// OrgName is the foundation or project name used in the email signature
+	// ("The X Team"). Defaults to "LFX" when empty.
+	OrgName string `json:"org_name,omitempty"`
+	// ExpirationDays is the number of days the invite token should be valid.
+	// If 0 or omitted, defaults to 30 days. Maximum is 90 days.
+	ExpirationDays int `json:"expiration_days,omitempty"`
+}
