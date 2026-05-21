@@ -23,6 +23,6 @@ type SendInviteRequest struct {
 	// ("The X Team"). Defaults to "LFX" when empty.
 	OrgName string `json:"org_name,omitempty"`
 	// ExpirationDays is the number of days the invite token should be valid.
-	// If 0 or omitted, defaults to 7 days.
+	// If 0 or omitted, defaults to 30 days. Maximum is 90 days.
 	ExpirationDays int `json:"expiration_days,omitempty"`
 }

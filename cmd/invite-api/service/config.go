@@ -11,6 +11,7 @@ import (
 // AppConfig holds all runtime configuration read from environment variables.
 type AppConfig struct {
 	NATSURL               string
+	LogLevel              string
 	DefaultReturnURL      string
 	InviteJWTSecret       string
 	SelfServeBaseURL      string
@@ -45,6 +46,7 @@ func AppConfigFromEnv() AppConfig {
 
 	return AppConfig{
 		NATSURL:               natsURL,
+		LogLevel:              os.Getenv("LOG_LEVEL"),
 		DefaultReturnURL:      defaultReturnURL,
 		InviteJWTSecret:       os.Getenv("INVITE_JWT_SECRET"),
 		SelfServeBaseURL:      selfServeBaseURL,

@@ -36,23 +36,26 @@ func (h contextHandler) Handle(ctx context.Context, r slog.Record) error {
 }
 
 // InitStructureLogConfig initializes the structured log configuration.
-func InitStructureLogConfig() {
-	logLevel := new(slog.LevelVar)
-	logLevel.Set(logLevelDefault)
+// logLevel should be "debug", "info", "warn", or "" for the default (debug).
+// Call with "" during init() for early startup logging, then call again after
+// AppConfigFromEnv() to apply the configured level.
+func InitStructureLogConfig(logLevel string) {
+	level := new(slog.LevelVar)
+	level.Set(logLevelDefault)
 
-	switch os.Getenv("LOG_LEVEL") {
+	switch logLevel {
 	case debug:
-		logLevel.Set(slog.LevelDebug)
+		level.Set(slog.LevelDebug)
 	case info:
-		logLevel.Set(slog.LevelInfo)
+		level.Set(slog.LevelInfo)
 	case warn:
-		logLevel.Set(slog.LevelWarn)
+		level.Set(slog.LevelWarn)
 	default:
-		logLevel.Set(logLevelDefault)
+		level.Set(logLevelDefault)
 	}
 
 	opts := &slog.HandlerOptions{
-		Level: logLevel,
+		Level: level,
 	}
 
 	handler := contextHandler{slogotel.OtelHandler{

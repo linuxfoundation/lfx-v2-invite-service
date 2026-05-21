@@ -24,7 +24,8 @@ var (
 const gracefulShutdownSeconds = 25
 
 func init() {
-	observability.InitStructureLogConfig()
+	// Bootstrap with default log level; reconfigured in run() once AppConfigFromEnv loads LOG_LEVEL.
+	observability.InitStructureLogConfig("")
 }
 
 func main() {
@@ -60,6 +61,7 @@ func run() error {
 	)
 
 	cfg := appsvc.AppConfigFromEnv()
+	observability.InitStructureLogConfig(cfg.LogLevel)
 
 	if err := appsvc.InitInfrastructure(ctx, cfg); err != nil {
 		return err

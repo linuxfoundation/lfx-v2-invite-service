@@ -24,6 +24,9 @@ const (
 	// InviteAcceptedSubject is published by the LFX self-serve web app once a user
 	// completes the invite acceptance flow (JWT validation + login). Backend services
 	// subscribe to this subject to grant access and clean up pending invite state.
+	// Note: this subject intentionally uses the "lfx.invite.*" namespace rather than
+	// "lfx.invite-service.invite.*" because the publisher is the self-serve web app,
+	// not the invite service. The constant lives here as the authoritative contract location.
 	InviteAcceptedSubject = "lfx.invite.accepted"
 	// InviteRevokedSubject is published when an invite is revoked.
 	InviteRevokedSubject = "lfx.invite-service.invite.revoked"
@@ -72,6 +75,6 @@ type SendInviteRequest struct {
 	// ("The X Team"). Defaults to "LFX" when empty.
 	OrgName string `json:"org_name,omitempty"`
 	// ExpirationDays is the number of days the invite token should be valid.
-	// If 0 or omitted, defaults to 7 days.
+	// If 0 or omitted, defaults to 30 days. Maximum is 90 days.
 	ExpirationDays int `json:"expiration_days,omitempty"`
 }
