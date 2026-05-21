@@ -154,4 +154,4 @@ externalSecretsOperator:
       - secretKey: invite-jwt-secret # checkov:skip=CKV_SECRET_6 not a base64 value
         remoteRef:
           key: cloud/invite-service/jwt
-          property: jwt_secret
+          property: invite_service_jwt_secret
