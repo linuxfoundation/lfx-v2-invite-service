@@ -72,7 +72,7 @@ make build
 
 NATS_URL=nats://localhost:4222 \
 INVITE_JWT_SECRET="change-me-local-dev-secret-32b!" \
-./bin/lfx-v2-invite-service
+./bin/invite-api
 ```
 
 ### Option 2 — Deploy to a local cluster with Helm
@@ -174,7 +174,7 @@ if resp.Error != "" {
 
 | Target | Description |
 | ------ | ----------- |
-| `make build` | Compile binary → `bin/lfx-v2-invite-service` |
+| `make build` | Compile binary → `bin/invite-api` |
 | `make test` | Run tests with race detector |
 | `make check` | fmt + lint + license-check + go vet |
 | `make lint` | golangci-lint only |

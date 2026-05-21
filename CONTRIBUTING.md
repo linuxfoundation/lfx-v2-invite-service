@@ -10,7 +10,7 @@ git commit -s -m "your commit message"
 
 ## Code owners
 
-See [CODEOWNERS](.github/CODEOWNERS) for the list of maintainers who review pull requests.
+See [CODEOWNERS](CODEOWNERS) for the list of maintainers who review pull requests.
 
 ## Development workflow
 

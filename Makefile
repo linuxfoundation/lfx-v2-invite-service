@@ -1,6 +1,7 @@
 # Copyright The Linux Foundation and each contributor to LFX.
 # SPDX-License-Identifier: MIT
 
+BINARY_NAME := invite-api
 APP_NAME := lfx-v2-invite-service/invite-service
 VERSION := $(shell git describe --tags --always 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -35,11 +36,11 @@ deps: setup
 build:
 	go build \
 		-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)" \
-		-o bin/$(APP_NAME) ./cmd/invite-api
+		-o bin/$(BINARY_NAME) ./cmd/invite-api
 
 .PHONY: run
 run: build
-	./bin/$(APP_NAME)
+	./bin/$(BINARY_NAME)
 
 .PHONY: test
 test:
