@@ -40,6 +40,9 @@ const (
 	InviteRoleManage InviteRole = "Manage"
 	// InviteRoleView maps to the auditors permission set.
 	InviteRoleView InviteRole = "View"
+	// InviteRoleMember represents a plain committee/group membership with no
+	// elevated write or audit access.
+	InviteRoleMember InviteRole = "Member"
 )
 
 // InviteData holds the invite metadata returned on a successful send_invite reply.

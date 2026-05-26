@@ -181,6 +181,23 @@ func TestHandleSendInvite_ViewRole_Accepted(t *testing.T) {
 	}
 }
 
+func TestHandleSendInvite_MemberRole_Accepted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.Role = string(model.RoleMember)
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("expected nil error for Member role, got %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email for Member role, got %d", len(email.Calls))
+	}
+	if email.Calls[0].Role != string(model.RoleMember) {
+		t.Errorf("role: got %q, want %q", email.Calls[0].Role, model.RoleMember)
+	}
+}
+
 // M18.1: a LinkGenerator failure returns an error and never calls SendNotification.
 func TestHandleSendInvite_LinkGeneratorFailure_NoEmailSent(t *testing.T) {
 	linkErr := errors.New("signing key unavailable")
