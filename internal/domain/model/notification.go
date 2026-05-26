@@ -11,6 +11,8 @@ const (
 	RoleManage Role = "Manage"
 	// RoleView maps to the auditors permission set.
 	RoleView Role = "View"
+	// RoleMember represents plain committee/group membership with no elevated access.
+	RoleMember Role = "Member"
 )
 
 // DeliveryState indicates the outcome of an attempted email send.

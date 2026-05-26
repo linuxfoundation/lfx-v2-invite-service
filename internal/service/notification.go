@@ -80,7 +80,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	}
 
 	role := model.Role(req.Role)
-	if role != model.RoleManage && role != model.RoleView {
+	if role != model.RoleManage && role != model.RoleView && role != model.RoleMember {
 		return SendInviteResult{}, fmt.Errorf("%w: unrecognised role %q for resource %s", ErrInvalidRequest, req.Role, req.ResourceUID)
 	}
 
