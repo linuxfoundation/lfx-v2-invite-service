@@ -3,8 +3,8 @@
 ## Project Overview
 
 The LFX V2 Invite Service is a Go microservice in the LFX v2 platform. It handles:
-- **Current**: Receiving `send_invite` requests from resource services via NATS request/reply, rendering the invite email template, forwarding to the email service for delivery, and returning the invite UUID to the caller.
-- **Future**: LFID invite token issuance (NATS KV), `/invite/:uuid` acceptance endpoint, and acceptance broadcast for non-LFID users.
+- **Current**: Receiving `send_invite` requests via NATS request/reply, rendering the invite email template, forwarding to the email service for delivery, and returning the invite UUID to the caller.
+- **Future**: LFID invite token issuance (NATS KV), `/invite?token=<jwt>` acceptance endpoint (served by the self-serve web app), and acceptance broadcast for non-LFID users.
 
 ## Key Technologies
 
@@ -23,7 +23,7 @@ cmd/invite-api/
 └── service/
     ├── config.go             # ALL env var reads live here — no os.Getenv in other layers
     ├── implementations.go    # Wires infrastructure into service structs
-    └── subscriptions.go      # Slice of {name, start func} — for-loop starts all consumers
+    └── subscriptions.go      # NATS subscriber registration (one QueueSubscribe per subject)
 
 internal/domain/
 ├── model/                    # Pure data: SendInviteRequest, Role, DeliveryState, etc.
@@ -33,9 +33,10 @@ internal/service/
 └── notification.go           # Business logic — receives config via NotificationConfig struct
 
 internal/infrastructure/
+├── auth/
+│   └── generator.go          # JWT link generator (HS256) — signs the invite return URL
 ├── nats/
 │   ├── client.go             # NATS connection
-│   ├── consumer.go           # StartSendInviteConsumer (queue-group request/reply subscriber)
 │   ├── email_sender.go       # NATSEmailSender — renders template, forwards to email service
 │   └── errors.go             # ServiceUnavailable, Unexpected error types (unexported)
 ├── observability/
@@ -56,7 +57,7 @@ pkg/
 ## Build Commands
 
 ```bash
-make build       # Compile binary to bin/lfx-v2-invite-service
+make build       # Compile binary to bin/invite-api
 make test        # Run tests with race detector
 make check       # fmt + lint + license-check + go vet
 make lint        # golangci-lint
@@ -68,9 +69,9 @@ make lint        # golangci-lint
 All `os.Getenv` calls belong in `cmd/invite-api/service/config.go` → `AppConfigFromEnv()`. Services receive a typed config struct (e.g., `NotificationConfig`), never call `os.Getenv` themselves.
 
 ### Adding a new NATS consumer
-1. Add a `Start<Name>Consumer` method on `*nats.Client` in `internal/infrastructure/nats/`
-2. Add the handler method to the relevant service in `internal/service/`
-3. Append to the `subscriptions` slice in `cmd/invite-api/service/subscriptions.go`
+1. Add the handler method to the relevant service in `internal/service/`
+2. Add a new `QueueSubscribe` call in `StartSubscriptions` in `cmd/invite-api/service/subscriptions.go`, following the pattern of the existing `send_invite` subscriber
+3. Wire any new infrastructure via `cmd/invite-api/service/implementations.go` and shut it down in `Shutdown()`
 
 ### Error handling
 - Infrastructure errors → unexported `newServiceUnavailable` / `newUnexpected` in `internal/infrastructure/nats/errors.go`
@@ -93,16 +94,12 @@ Every `.go` file must start with:
 
 | Subject | Direction | Description |
 |---|---|---|
-| `lfx.invite-service.send_invite` | Request/reply | Resource services send `SendInviteRequest`; invite service replies with `SendInviteResponse{InviteUID}` |
+| `lfx.invite-service.send_invite` | Request/reply | Callers send `SendInviteRequest`; invite service replies with `SendInviteResponse{Invite}` |
 | `lfx.email-service.send_email` | Request/reply | Forward pre-rendered email to the email service for delivery |
-| `lfx.invite-service.invite.created` | Published (future) | Invite issued |
-| `lfx.invite-service.invite.accepted` | Published (future) | Invite accepted |
-| `lfx.invite-service.invite.revoked` | Published (future) | Invite revoked |
+| `lfx.invite.accepted` | Published (future) | Invite accepted — published by the self-serve web app, not this service; `lfx.invite.*` namespace intentional |
 
 ## Related Services
 
 | Service | Relationship |
 |---|---|
 | `lfx-v2-email-service` | Handles SMTP delivery; this service forwards pre-rendered email bodies to it |
-| `lfx-v2-project-service` | Example resource service that will publish `send_invite` requests |
-| `lfx-v2-committee-service` | Example resource service that publishes `send_invite` requests |
