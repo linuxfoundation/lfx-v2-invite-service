@@ -57,7 +57,7 @@ pkg/
 ## Build Commands
 
 ```bash
-make build       # Compile binary to bin/lfx-v2-invite-service
+make build       # Compile binary to bin/invite-api
 make test        # Run tests with race detector
 make check       # fmt + lint + license-check + go vet
 make lint        # golangci-lint

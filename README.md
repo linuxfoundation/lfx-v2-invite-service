@@ -84,7 +84,10 @@ import (
 )
 
 func main() {
-    nc, _ := nats.Connect(nats.DefaultURL)
+    nc, err := nats.Connect(nats.DefaultURL)
+    if err != nil {
+        panic(err)
+    }
     defer nc.Close()
 
     req := inviteapi.SendInviteRequest{
@@ -96,7 +99,10 @@ func main() {
         Role:           string(inviteapi.InviteRoleManage),
         ResourceType:   "project",
     }
-    data, _ := json.Marshal(req)
+    data, err := json.Marshal(req)
+    if err != nil {
+        panic(err)
+    }
 
     msg, err := nc.Request(inviteapi.SendInviteSubject, data, 10*time.Second)
     if err != nil {
