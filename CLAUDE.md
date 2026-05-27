@@ -4,7 +4,7 @@
 
 The LFX V2 Invite Service is a Go microservice in the LFX v2 platform. It handles:
 - **Current**: Receiving `send_invite` requests via NATS request/reply, rendering the invite email template, forwarding to the email service for delivery, and returning the invite UUID to the caller.
-- **Future**: LFID invite token issuance (NATS KV), `/invite/:uuid` acceptance endpoint, and acceptance broadcast for non-LFID users.
+- **Future**: LFID invite token issuance (NATS KV), `/invite?token=<jwt>` acceptance endpoint (served by the self-serve web app), and acceptance broadcast for non-LFID users.
 
 ## Key Technologies
 

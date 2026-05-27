@@ -28,7 +28,7 @@ Every `.go` file must begin with:
 // SPDX-License-Identifier: MIT
 ```
 
-The `make check` target enforces this via `license-check`.
+The `make check` target runs `license-check`, which verifies the copyright line is present in every `.go` file.
 
 ## Security issues
 

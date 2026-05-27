@@ -6,7 +6,7 @@ Handles invite email delivery for the LFX platform. When a non-LFID user is adde
 
 **Current scope** — pure NATS subscriber. Accepts `send_invite` requests, renders invite emails with embedded signed return URLs, and forwards to `lfx-v2-email-service` for delivery.
 
-**Planned scope** — LFID invite token issuance, `/invite/:uuid` HTTP acceptance endpoint (served by the self-serve web app), and acceptance broadcast (`lfx.invite.accepted`) consumed by resource services to grant access.
+**Planned scope** — LFID invite token issuance, `/invite?token=<jwt>` HTTP acceptance endpoint (served by the self-serve web app), and acceptance broadcast (`lfx.invite.accepted`) consumed by resource services to grant access.
 
 ## Usage
 
@@ -24,7 +24,7 @@ Handles invite email delivery for the LFX platform. When a non-LFID user is adde
 | `inviter_name` | string | | Display name of the person triggering the invite |
 | `resource_uid` | string | yes | UID of the resource the recipient is being invited to |
 | `resource_name` | string | | Human-readable resource name used in the email body |
-| `role` | string | yes | `"Manage"` (writers/coordinators) or `"View"` (auditors) |
+| `role` | string | yes | `"Manage"` (writers/coordinators), `"View"` (auditors), or `"Member"` (plain membership) |
 | `return_url` | string | | Override return URL after invite acceptance. Must be HTTPS and match `ALLOWED_RETURN_URL_HOSTS`. Defaults to `DEFAULT_INVITE_LINK_RETURN_URL`. |
 | `resource_type` | string | | Kind of resource (e.g. `"project"`, `"group"`). Defaults to `"resource"`. |
 | `org_name` | string | | Foundation or project name for the email signature. Defaults to `"LFX"`. |
@@ -181,7 +181,7 @@ Standard `OTEL_*` SDK env vars (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAM
 - **NATS-only today** — no HTTP server. An HTTP server will be added when the `/invite/:uuid` acceptance endpoint is needed.
 - **Template ownership** — the invite service owns and renders the email template (HTML + plaintext + subject line). The email service (`lfx-v2-email-service`) handles SMTP delivery only. Callers publish a structured `SendInviteRequest` — no pre-rendered HTML required.
 - **Signed return URLs** — `INVITE_JWT_SECRET` signs the return URL embedded in the invite email. JWT signing failure fails the entire request rather than falling back to an unsigned URL; emailing an LFX-branded link to an unsigned, unrevokable destination would be a security regression.
-- **Planned: invite acceptance** — once the LFID flow is built, the self-serve web app will publish `lfx.invite.accepted` after a user completes the acceptance flow. Resource services subscribe to this subject to grant access.
+- **Planned: invite acceptance** — once the LFID flow is built, the self-serve web app will serve `/invite?token=<jwt>` and publish `lfx.invite.accepted` after a user completes the acceptance flow. Resource services subscribe to this subject to grant access.
 
 ## Development
 
