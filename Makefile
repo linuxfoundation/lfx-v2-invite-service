@@ -34,6 +34,7 @@ deps: setup
 
 .PHONY: build
 build:
+	@mkdir -p bin
 	go build \
 		-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)" \
 		-o bin/$(BINARY_NAME) ./cmd/invite-api

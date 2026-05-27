@@ -97,7 +97,7 @@ json.Unmarshal(msg.Data, &resp)
 make build
 
 NATS_URL=nats://localhost:4222 \
-INVITE_JWT_SECRET="change-me-local-dev-secret-32b!" \
+INVITE_JWT_SECRET="change-me-local-dev-secret-32b!!" \
 ./bin/invite-api
 ```
 
@@ -118,7 +118,7 @@ make helm-install-local
 | `LFX_ENVIRONMENT` | unset → dev | Controls `LFX_SELF_SERVE_BASE_URL` default: `prod` → `https://app.lfx.dev`, `staging`/`stg` → `https://app.staging.lfx.dev`, else `https://app.dev.lfx.dev` |
 | `LFX_SELF_SERVE_BASE_URL` | derived from `LFX_ENVIRONMENT` | Explicit override for the self-serve base URL |
 | `DEFAULT_INVITE_LINK_RETURN_URL` | falls back to `LFX_SELF_SERVE_BASE_URL` | Default return URL embedded in invite JWTs when the caller omits `return_url` |
-| `ALLOWED_RETURN_URL_HOSTS` | `*.lfx.dev,*.linuxfoundation.org` | Comma-separated list of allowed `return_url` host patterns (supports `*` wildcard prefix). Must be HTTPS. |
+| `ALLOWED_RETURN_URL_HOSTS` | `*.lfx.dev,*.linuxfoundation.org` | Comma-separated list of allowed `return_url` host patterns. Only the `*.` subdomain wildcard is supported (e.g. `*.lfx.dev` matches `app.lfx.dev`). Must be HTTPS. |
 | `LOG_LEVEL` | `""` (logger default applies) | Log level: `debug`, `info`, `warn` |
 
 Standard `OTEL_*` SDK env vars (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, etc.) are read by the OTel SDK in `internal/infrastructure/observability/otel.go`.
