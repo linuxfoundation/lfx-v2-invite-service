@@ -96,9 +96,7 @@ Every `.go` file must start with:
 |---|---|---|
 | `lfx.invite-service.send_invite` | Request/reply | Callers send `SendInviteRequest`; invite service replies with `SendInviteResponse{Invite}` |
 | `lfx.email-service.send_email` | Request/reply | Forward pre-rendered email to the email service for delivery |
-| `lfx.invite-service.invite.created` | Published (future) | Invite issued |
 | `lfx.invite.accepted` | Published (future) | Invite accepted — published by the self-serve web app, not this service; `lfx.invite.*` namespace intentional |
-| `lfx.invite-service.invite.revoked` | Published (future) | Invite revoked |
 
 ## Related Services
 

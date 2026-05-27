@@ -8,85 +8,112 @@ Handles invite email delivery for the LFX platform. When a non-LFID user is adde
 
 **Planned scope** — LFID invite token issuance, `/invite/:uuid` HTTP acceptance endpoint (served by the self-serve web app), and acceptance broadcast (`lfx.invite.accepted`) consumed by resource services to grant access.
 
-## NATS Contract
+## Usage
 
-**Subject:** `lfx.invite-service.send_invite`
-**Direction:** Request/reply
+### Send an invite
+
+**Subject:** `lfx.invite-service.send_invite`  
 **Queue group:** `invite-service-workers`
 
-### Via NATS
+**Request payload fields:**
 
-```bash
-nats req lfx.invite-service.send_invite \
-  '{"recipient_email":"user@example.com","recipient_name":"Jane Doe","resource_uid":"resource-123","resource_name":"My Resource","role":"Manage","resource_type":"project"}'
+| Field | Type | Required | Description |
+| ----- | ---- | :------: | ----------- |
+| `recipient_email` | string | yes | Email address of the person being invited |
+| `recipient_name` | string | | Display name of the recipient |
+| `inviter_name` | string | | Display name of the person triggering the invite |
+| `resource_uid` | string | yes | UID of the resource the recipient is being invited to |
+| `resource_name` | string | | Human-readable resource name used in the email body |
+| `role` | string | yes | `"Manage"` (writers/coordinators) or `"View"` (auditors) |
+| `return_url` | string | | Override return URL after invite acceptance. Must be HTTPS and match `ALLOWED_RETURN_URL_HOSTS`. Defaults to `DEFAULT_INVITE_LINK_RETURN_URL`. |
+| `resource_type` | string | | Kind of resource (e.g. `"project"`, `"group"`). Defaults to `"resource"`. |
+| `org_name` | string | | Foundation or project name for the email signature. Defaults to `"LFX"`. |
+| `expiration_days` | int | | Days the invite link is valid. Defaults to 30, max 90. |
+
+```json
+{
+  "recipient_email": "user@example.com",
+  "recipient_name": "Jane Doe",
+  "inviter_name": "John Smith",
+  "resource_uid": "resource-123",
+  "resource_name": "My Project",
+  "role": "Manage",
+  "resource_type": "project"
+}
 ```
 
 **Success response:**
 ```json
-{ "invite": { "uid": "abc123", "email": "user@example.com", "expires_at": "2026-06-20T..." } }
+{ "invite": { "uid": "abc123", "email": "user@example.com", "expires_at": "2026-06-20T00:00:00Z" } }
 ```
 
 **Error response:**
 ```json
-{ "error": "invalid_request" }
+{ "error": "<reason>" }
 ```
 
-### Via Go
-
-Import `pkg/api` for the subject constant and wire types:
-
-```go
-import inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
-
-req := inviteapi.SendInviteRequest{
-    RecipientEmail: "user@example.com",
-    RecipientName:  "Jane Doe",
-    InviterName:    "John Smith",
-    ResourceUID:    "resource-123",
-    ResourceName:   "My Resource",
-    Role:           string(inviteapi.InviteRoleManage),
-    ResourceType:   "project",
-}
-data, _ := json.Marshal(req)
-
-msg, err := nc.Request(inviteapi.SendInviteSubject, data, 10*time.Second)
-
-var resp inviteapi.SendInviteResponse
-json.Unmarshal(msg.Data, &resp)
-// resp.Invite.UID on success, resp.Error on failure
-```
-
-### Request fields — `SendInviteRequest`
-
-| Field | Type | Required | Description |
-| ----- | ---- | :------: | ----------- |
-| `recipient_email` | `string` | yes | Email address of the person being invited |
-| `recipient_name` | `string` | | Display name of the recipient |
-| `inviter_name` | `string` | | Display name of the person triggering the invite |
-| `resource_uid` | `string` | yes | UID of the resource the recipient is being invited to |
-| `resource_name` | `string` | | Human-readable resource name used in the email body |
-| `role` | `string` | yes | `"Manage"` (writers/coordinators) or `"View"` (auditors) |
-| `return_url` | `string` | | Override return URL after invite acceptance. Must be HTTPS and match `ALLOWED_RETURN_URL_HOSTS`. Defaults to `DEFAULT_INVITE_LINK_RETURN_URL`. |
-| `resource_type` | `string` | | Kind of resource (e.g. `"project"`, `"group"`). Defaults to `"resource"`. |
-| `org_name` | `string` | | Foundation or project name for the email signature. Defaults to `"LFX"`. |
-| `expiration_days` | `int` | | Days the invite link is valid. Defaults to 30, max 90. |
-
-### Error codes
-
-| Code | Cause |
-| ---- | ----- |
+| `error` value | Cause |
+| ------------- | ----- |
 | `malformed_request` | Payload could not be JSON-decoded |
 | `invalid_request` | Missing required field, invalid email, unsupported role, or disallowed return URL |
 | `email_dispatch_failed` | Email service returned an error or was unreachable |
 | `internal_error` | Unexpected server-side error |
 
-### Subjects published (future)
+**Example (NATS CLI):**
+```bash
+nats req lfx.invite-service.send_invite \
+  '{"recipient_email":"user@example.com","recipient_name":"Jane Doe","resource_uid":"resource-123","resource_name":"My Project","role":"Manage","resource_type":"project"}'
+```
 
-| Subject | When | Publisher |
-| ------- | ---- | --------- |
-| `lfx.invite-service.invite.created` | Invite token issued | invite-service |
-| `lfx.invite-service.invite.revoked` | Invite revoked | invite-service |
-| `lfx.invite.accepted` | User completes acceptance flow | self-serve web app — note: `lfx.invite.*` namespace, not `lfx.invite-service.*`, because the publisher is the web app |
+### Use with Go
+
+```bash
+go get github.com/linuxfoundation/lfx-v2-invite-service/pkg/api
+```
+
+```go
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "time"
+
+    "github.com/nats-io/nats.go"
+    inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
+)
+
+func main() {
+    nc, _ := nats.Connect(nats.DefaultURL)
+    defer nc.Close()
+
+    req := inviteapi.SendInviteRequest{
+        RecipientEmail: "user@example.com",
+        RecipientName:  "Jane Doe",
+        InviterName:    "John Smith",
+        ResourceUID:    "resource-123",
+        ResourceName:   "My Project",
+        Role:           string(inviteapi.InviteRoleManage),
+        ResourceType:   "project",
+    }
+    data, _ := json.Marshal(req)
+
+    msg, err := nc.Request(inviteapi.SendInviteSubject, data, 10*time.Second)
+    if err != nil {
+        panic(err)
+    }
+
+    var resp inviteapi.SendInviteResponse
+    if err := json.Unmarshal(msg.Data, &resp); err != nil {
+        panic(err)
+    }
+    if resp.Error != "" {
+        fmt.Println("invite failed:", resp.Error)
+        return
+    }
+    fmt.Println("invite sent, uid:", resp.Invite.UID)
+}
+```
 
 ## Quick Start
 
@@ -154,6 +181,7 @@ Standard `OTEL_*` SDK env vars (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAM
 - **NATS-only today** — no HTTP server. An HTTP server will be added when the `/invite/:uuid` acceptance endpoint is needed.
 - **Template ownership** — the invite service owns and renders the email template (HTML + plaintext + subject line). The email service (`lfx-v2-email-service`) handles SMTP delivery only. Callers publish a structured `SendInviteRequest` — no pre-rendered HTML required.
 - **Signed return URLs** — `INVITE_JWT_SECRET` signs the return URL embedded in the invite email. JWT signing failure fails the entire request rather than falling back to an unsigned URL; emailing an LFX-branded link to an unsigned, unrevokable destination would be a security regression.
+- **Planned: invite acceptance** — once the LFID flow is built, the self-serve web app will publish `lfx.invite.accepted` after a user completes the acceptance flow. Resource services subscribe to this subject to grant access.
 
 ## Development
 
