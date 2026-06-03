@@ -57,8 +57,8 @@ type NotificationService struct {
 }
 
 // NewNotificationService creates a new NotificationService.
-// inviteStore may be nil during tests or in deployments that haven't provisioned
-// the KV bucket yet; the send flow will log a warning and continue.
+// inviteStore may be nil in unit tests; production wiring always provides a store
+// and hard-fails startup if the KV bucket cannot be bound.
 func NewNotificationService(email port.EmailSender, linkGen LinkGenerator, store port.InviteStore, cfg NotificationConfig) *NotificationService {
 	return &NotificationService{
 		emailSender:   email,
