@@ -32,8 +32,18 @@ const (
 )
 
 // StartSubscriptions binds all NATS subscribers and returns their stop functions.
+// If any subscription fails to start, all previously started subscriptions are
+// stopped before the error is returned so the process is never left in a
+// partially-initialized state with live consumers.
 func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	stopFuncs := make([]func(), 0, 4)
+
+	// stopAll is called on any startup error to unsubscribe consumers already registered.
+	stopAll := func() {
+		for _, stop := range stopFuncs {
+			stop()
+		}
+	}
 
 	// --- send_invite: request/reply from resource services ---
 	stopSend, err := NATSClient.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(msg *nats.Msg) {
@@ -79,7 +89,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 		}
 		logArgs := []any{"resource_uid", req.ResolvedResourceUID(), "error", resp.Error}
 		if resp.InviteData != nil {
-			logArgs = append(logArgs, "invite_uid", resp.InviteData.UID, "expires_at", resp.InviteData.ExpiresAt)
+			logArgs = append(logArgs, "invite_uid", resp.UID, "expires_at", resp.ExpiresAt)
 		}
 		slog.InfoContext(msgCtx, "send_invite reply sent", logArgs...)
 	})
@@ -107,6 +117,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 		AcceptanceSvc.HandleInviteAccepted(msgCtx, evt)
 	})
 	if err != nil {
+		stopAll()
 		return nil, fmt.Errorf("start subscription %q: %w", "invite-accepted", err)
 	}
 	stopFuncs = append(stopFuncs, stopAccepted)
@@ -153,6 +164,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 		}
 	})
 	if err != nil {
+		stopAll()
 		return nil, fmt.Errorf("start subscription %q: %w", "get-invite", err)
 	}
 	stopFuncs = append(stopFuncs, stopGetInvite)
@@ -195,6 +207,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 		}
 	})
 	if err != nil {
+		stopAll()
 		return nil, fmt.Errorf("start subscription %q: %w", "get-invites-by-email", err)
 	}
 	stopFuncs = append(stopFuncs, stopGetByEmail)

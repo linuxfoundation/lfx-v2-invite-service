@@ -31,7 +31,8 @@ type InviteStore interface {
 	GetByEmail(ctx context.Context, email string) ([]*model.InviteRecord, error)
 
 	// MarkAccepted updates the invite record to status=accepted, sets AcceptedAt
-	// to at, and sets AcceptedBy to username. If the record does not exist (i.e. the
-	// invite belongs to another flow), the call is silently ignored — no error returned.
+	// to at, and sets AcceptedBy to username. Returns ErrInviteNotFound when no
+	// record exists for the given uid — callers can use this to distinguish "invite
+	// belongs to another service's flow" from a transient storage error.
 	MarkAccepted(ctx context.Context, uid, username string, at time.Time) error
 }

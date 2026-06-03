@@ -132,6 +132,14 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	reqCopy.ResourceName = req.ResolvedResourceName()   //nolint:staticcheck
 	reqCopy.ResourceType = req.ResolvedResourceType()   //nolint:staticcheck
 	reqCopy.ReturnURL = inviteLink                      // templates need the signed link as the CTA URL
+	// Deep-copy the structured Recipient so that ResolvedRecipientEmail() returns the
+	// canonical address (from mail.ParseAddress) rather than the original display-name
+	// form (e.g. "Alice <alice@example.com>"), which would break the email index.
+	if req.Recipient != nil {
+		rec := *req.Recipient
+		rec.Email = canonicalEmail
+		reqCopy.Recipient = &rec
+	}
 	req = &reqCopy
 
 	if err := s.emailSender.SendNotification(ctx, req); err != nil {

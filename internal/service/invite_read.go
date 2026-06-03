@@ -5,7 +5,6 @@ package service
 
 import (
 	"context"
-	"errors"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
@@ -39,13 +38,10 @@ func (s *InviteReadService) GetInvite(ctx context.Context, uid string) (*api.Inv
 }
 
 // GetInvitesByEmail returns all api.Invite records for the given email address.
-// Returns an empty slice when no records exist — never returns an error in that case.
+// Returns an empty non-nil slice when no records exist — never returns an error in that case.
 func (s *InviteReadService) GetInvitesByEmail(ctx context.Context, email string) ([]api.Invite, error) {
 	records, err := s.inviteStore.GetByEmail(ctx, email)
 	if err != nil {
-		if errors.Is(err, port.ErrInviteNotFound) {
-			return nil, nil
-		}
 		return nil, err
 	}
 	invites := make([]api.Invite, 0, len(records))

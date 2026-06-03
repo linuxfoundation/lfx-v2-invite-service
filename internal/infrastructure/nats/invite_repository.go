@@ -107,7 +107,7 @@ func (r *NATSInviteRepository) GetByEmail(ctx context.Context, email string) ([]
 	}
 
 	if len(inviteUIDs) == 0 {
-		return nil, nil
+		return []*model.InviteRecord{}, nil
 	}
 
 	records := make([]*model.InviteRecord, 0, len(inviteUIDs))
@@ -136,8 +136,9 @@ func (r *NATSInviteRepository) MarkAccepted(ctx context.Context, uid, username s
 		entry, err := r.kv.Get(ctx, uid)
 		if err != nil {
 			if errors.Is(err, jetstream.ErrKeyNotFound) {
-				// Not ours — silently ignore.
-				return nil
+				// Not tracked by this service — return ErrInviteNotFound so the service
+				// layer can distinguish "not mine" from a transient KV error.
+				return port.ErrInviteNotFound
 			}
 			return newServiceUnavailable("invite_repository: get invite for mark_accepted", err)
 		}
