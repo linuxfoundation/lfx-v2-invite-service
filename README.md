@@ -433,6 +433,23 @@ make build
 # binary: bin/lfx-v2-invite-service/invite-service
 ```
 
+### Create the Kubernetes secret
+
+The Helm chart expects a secret named `lfx-v2-invite-service` with an
+`invite-jwt-secret` key. Create it before deploying (or the pod will fail to
+start with `secret "lfx-v2-invite-service" not found`):
+
+```bash
+kubectl create secret generic lfx-v2-invite-service \
+  --from-literal=invite-jwt-secret=$(openssl rand -base64 48) \
+  -n lfx
+```
+
+> In production the secret is managed by External Secrets Operator, which
+> pulls the value from AWS Secrets Manager at
+> `/cloudops/managed-secrets/cloud/invite-service/jwt`. For local Kubernetes
+> (e.g. OrbStack) the manual `kubectl create secret` above is sufficient.
+
 ### Run locally
 
 ```bash
