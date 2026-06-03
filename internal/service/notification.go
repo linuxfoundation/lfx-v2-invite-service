@@ -176,7 +176,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	if s.inviteStore != nil {
 		record := buildInviteRecord(inviteUID, req, destURL, expiresAt)
 		if storeErr := s.inviteStore.Create(ctx, record); storeErr != nil {
-			slog.ErrorContext(ctx, "invite_store: failed to persist invite record — email was sent, record will be missing",
+			slog.ErrorContext(ctx, "invite_store: failed to persist invite record — email was sent; record may be absent or stored without email index",
 				"invite_uid", inviteUID,
 				"resource_uid", resourceUID,
 				"error", storeErr,

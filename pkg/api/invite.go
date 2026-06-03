@@ -194,11 +194,12 @@ type GetInvitesByEmailRequest struct {
 	Email string `json:"email"`
 }
 
-// GetInvitesByEmailResponse is the error reply payload for GetInvitesByEmailSubject.
-// On success the reply is a bare JSON array of Invite objects ([]Invite).
-// On failure only Error is set.
+// GetInvitesByEmailResponse is the reply payload for GetInvitesByEmailSubject.
+// On success Invites contains the matching records and Error is empty.
+// On failure Invites is an empty array and Error is set.
 type GetInvitesByEmailResponse struct {
-	Error string `json:"error,omitempty"`
+	Invites []Invite `json:"invites"`
+	Error   string   `json:"error,omitempty"`
 }
 
 // InviteServiceAcceptedEvent is published on InviteServiceAcceptedSubject by the

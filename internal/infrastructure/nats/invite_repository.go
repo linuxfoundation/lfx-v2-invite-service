@@ -30,7 +30,9 @@ const (
 
 // NATSInviteRepository implements port.InviteStore using a NATS JetStream KeyValue bucket.
 // Primary records are keyed by invite UID; a secondary index under "index/email/<email>/<uid>"
-// maps each email to its invite UIDs for O(prefix-scanned-keys) lookups.
+// maps each email to its invite UIDs. Email lookups scan all bucket keys client-side
+// (O(all-keys)) — this is acceptable for current scale but should be revisited if the
+// bucket grows large.
 type NATSInviteRepository struct {
 	kv jetstream.KeyValue
 }
@@ -129,8 +131,8 @@ func (r *NATSInviteRepository) GetByEmail(ctx context.Context, email string) ([]
 
 // MarkAccepted updates the invite record to status=accepted. It uses optimistic
 // concurrency (read-with-revision + conditional update) with up to maxMarkAcceptedRetries
-// retries on revision mismatch. If the record does not exist, the call is a no-op (the
-// invite belongs to another service's flow).
+// retries on revision mismatch. If the record does not exist, port.ErrInviteNotFound is
+// returned so the caller can distinguish "invite not tracked here" from a transient error.
 func (r *NATSInviteRepository) MarkAccepted(ctx context.Context, uid, username string, at time.Time) error {
 	for attempt := range maxMarkAcceptedRetries {
 		entry, err := r.kv.Get(ctx, uid)

@@ -194,7 +194,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		data, marshalErr := json.Marshal(invites)
+		data, marshalErr := json.Marshal(api.GetInvitesByEmailResponse{Invites: invites})
 		if marshalErr != nil {
 			slog.ErrorContext(msgCtx, "get_invites_by_email: failed to marshal response", "error", marshalErr)
 			replyGetByEmailError(msgCtx, msg, "internal_error")
@@ -249,12 +249,12 @@ func replyGetInviteError(ctx context.Context, msg *nats.Msg, errCode string) {
 	}
 }
 
-// replyGetByEmailError sends a GetInvitesByEmailResponse with only the Error field set.
+// replyGetByEmailError sends a GetInvitesByEmailResponse with an empty Invites slice and the Error field set.
 func replyGetByEmailError(ctx context.Context, msg *nats.Msg, errCode string) {
 	if msg.Reply == "" {
 		return
 	}
-	data, _ := json.Marshal(api.GetInvitesByEmailResponse{Error: errCode})
+	data, _ := json.Marshal(api.GetInvitesByEmailResponse{Invites: []api.Invite{}, Error: errCode})
 	if err := msg.Respond(data); err != nil {
 		slog.ErrorContext(ctx, "get_invites_by_email: failed to send error reply", "error", err)
 	}
