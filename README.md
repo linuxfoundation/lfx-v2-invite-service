@@ -196,33 +196,31 @@ sending another.
 { "email": "alice@example.com" }
 ```
 
-**Success response** — an array of invite records (empty array when none exist):
+**Success response** — a bare JSON array of invite records (empty array when none exist):
 ```json
-{
-  "invites": [
-    {
-      "uid": "550e8400-e29b-41d4-a716-446655440000",
-      "status": "pending",
-      "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
-      "inviter": { "name": "Bob Jones", "username": "bobjones" },
-      "resource": { "uid": "proj-abc123", "name": "My Project", "type": "project" },
-      "role": "Member",
-      "created_at": "2025-01-15T10:30:00Z",
-      "expires_at": "2025-02-14T10:30:00Z"
-    },
-    {
-      "uid": "661f9511-f30c-52e5-b827-557766551111",
-      "status": "accepted",
-      "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
-      "resource": { "uid": "comm-xyz789", "name": "My Committee", "type": "committee" },
-      "role": "Member",
-      "created_at": "2025-01-10T09:00:00Z",
-      "expires_at": "2025-02-09T09:00:00Z",
-      "accepted_at": "2025-01-11T16:30:00Z",
-      "accepted_by": "alice-lfid"
-    }
-  ]
-}
+[
+  {
+    "uid": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "pending",
+    "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
+    "inviter": { "name": "Bob Jones", "username": "bobjones" },
+    "resource": { "uid": "proj-abc123", "name": "My Project", "type": "project" },
+    "role": "Member",
+    "created_at": "2025-01-15T10:30:00Z",
+    "expires_at": "2025-02-14T10:30:00Z"
+  },
+  {
+    "uid": "661f9511-f30c-52e5-b827-557766551111",
+    "status": "accepted",
+    "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
+    "resource": { "uid": "comm-xyz789", "name": "My Committee", "type": "committee" },
+    "role": "Member",
+    "created_at": "2025-01-10T09:00:00Z",
+    "expires_at": "2025-02-09T09:00:00Z",
+    "accepted_at": "2025-01-11T16:30:00Z",
+    "accepted_by": "alice-lfid"
+  }
+]
 ```
 
 **Error response:**
@@ -340,9 +338,9 @@ func main() {
 	listReq, _ := json.Marshal(inviteapi.GetInvitesByEmailRequest{Email: "alice@example.com"})
 	listReply, _ := nc.RequestWithContext(ctx, inviteapi.GetInvitesByEmailSubject, listReq)
 
-	var listResp inviteapi.GetInvitesByEmailResponse
-	_ = json.Unmarshal(listReply.Data, &listResp)
-	fmt.Printf("invites for alice: %d\n", len(listResp.Invites))
+	var invites []inviteapi.Invite
+	_ = json.Unmarshal(listReply.Data, &invites)
+	fmt.Printf("invites for alice: %d\n", len(invites))
 }
 ```
 
