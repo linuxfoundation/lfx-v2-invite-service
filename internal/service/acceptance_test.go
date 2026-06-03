@@ -72,6 +72,13 @@ func TestAcceptanceService_HandleInviteAccepted(t *testing.T) {
 			wantMarkCalled:  true,
 		},
 		{
+			name:              "skips publish on duplicate/redelivered event (ErrAlreadyAccepted)",
+			event:             api.InviteAcceptedEvent{InviteUID: "uid-already", Username: "alice"},
+			markAcceptedErr:   port.ErrAlreadyAccepted,
+			wantMarkCalled:    true,
+			wantPublishCalled: false,
+		},
+		{
 			name:            "logs but does not panic on transient store error",
 			event:           api.InviteAcceptedEvent{InviteUID: "uid-456", Username: "carol"},
 			markAcceptedErr: errTransient,

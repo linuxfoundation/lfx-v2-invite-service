@@ -49,6 +49,13 @@ func (s *AcceptanceService) HandleInviteAccepted(ctx context.Context, evt api.In
 				"invite_uid", evt.InviteUID)
 			return
 		}
+		if errors.Is(err, port.ErrAlreadyAccepted) {
+			// Redelivered or duplicate event — the record is already in the accepted state.
+			// Skip the enriched publish to avoid emitting duplicate InviteServiceAcceptedEvents.
+			slog.DebugContext(ctx, "acceptance: invite already accepted — skipping duplicate publish",
+				"invite_uid", evt.InviteUID)
+			return
+		}
 		// Transient KV error: log and drop. The event is fire-and-forget so there
 		// is no retry mechanism; the record will remain in pending state.
 		slog.WarnContext(ctx, "acceptance: failed to mark invite as accepted",

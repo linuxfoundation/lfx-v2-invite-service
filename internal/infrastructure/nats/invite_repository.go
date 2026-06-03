@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -61,10 +62,16 @@ func (r *NATSInviteRepository) Create(ctx context.Context, record *model.InviteR
 	// email don't conflict (no read-modify-write needed).
 	indexKey := emailIndexKey(record.Recipient.Email, record.UID)
 	if _, err := r.kv.Put(ctx, indexKey, []byte(record.UID)); err != nil {
-		slog.ErrorContext(ctx, "invite_repository: failed to write email index — record stored but index may be inconsistent",
-			"invite_uid", record.UID,
-			"error", err,
-		)
+		// Best-effort rollback: delete the primary record so it does not become an
+		// orphan that is findable by get_invite but invisible to get_by_email.
+		// Rollback failure is logged as a warning; the caller's error log (notification.go)
+		// has more context (resource_uid) and is the authoritative error record.
+		if delErr := r.kv.Delete(ctx, record.UID); delErr != nil {
+			slog.WarnContext(ctx, "invite_repository: failed to roll back primary record after index write failure",
+				"invite_uid", record.UID,
+				"rollback_error", delErr,
+			)
+		}
 		return newServiceUnavailable("invite_repository: put email index", err)
 	}
 
@@ -90,10 +97,18 @@ func (r *NATSInviteRepository) GetByUID(ctx context.Context, uid string) (*model
 }
 
 // GetByEmail retrieves all invite records for the given email address (case-insensitive).
+// The query email is canonicalized via mail.ParseAddress so that a display-name form such
+// as "Alice <alice@example.com>" resolves to the same index key as the stored "alice@example.com".
 // Returns an empty slice when no matching records exist.
 func (r *NATSInviteRepository) GetByEmail(ctx context.Context, email string) ([]*model.InviteRecord, error) {
-	normalized := encodeEmailForKey(email)
-	prefix := emailIndexPrefix + normalized + "/"
+	// Mirror the write path: canonicalize via mail.ParseAddress so display-name queries
+	// (e.g. "Alice <alice@example.com>") resolve to the same key as the stored address.
+	queryEmail := email
+	if addr, parseErr := mail.ParseAddress(email); parseErr == nil {
+		queryEmail = addr.Address
+	}
+	encoded := encodeEmailForKey(queryEmail)
+	prefix := emailIndexPrefix + encoded + "/"
 
 	keys, err := r.kv.ListKeys(ctx)
 	if err != nil {
@@ -109,6 +124,13 @@ func (r *NATSInviteRepository) GetByEmail(ctx context.Context, email string) ([]
 		}
 	}
 
+	// If the context deadline fired mid-scan, the keys channel closes early and
+	// the loop above returns a partial (silently truncated) result. Detect and
+	// surface this as an error rather than returning incomplete data.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, newServiceUnavailable("invite_repository: get_by_email scan interrupted by context deadline", ctxErr)
+	}
+
 	if len(inviteUIDs) == 0 {
 		return []*model.InviteRecord{}, nil
 	}
@@ -120,7 +142,7 @@ func (r *NATSInviteRepository) GetByEmail(ctx context.Context, email string) ([]
 			if errors.Is(err, port.ErrInviteNotFound) {
 				// Index entry without a corresponding record — stale; skip.
 				slog.WarnContext(ctx, "invite_repository: stale email index entry — no record for uid",
-					"uid", uid, "email", normalized)
+					"uid", uid, "encoded_email", encoded)
 				continue
 			}
 			return nil, err
@@ -151,9 +173,10 @@ func (r *NATSInviteRepository) MarkAccepted(ctx context.Context, uid, username s
 			return newUnexpected("invite_repository: unmarshal invite for mark_accepted", err)
 		}
 
-		// Idempotent: already accepted.
+		// Already accepted — signal the caller so it can avoid triggering duplicate
+		// side-effects (e.g. re-publishing the enriched InviteServiceAcceptedEvent).
 		if record.Status == model.InviteStatusAccepted {
-			return nil
+			return port.ErrAlreadyAccepted
 		}
 
 		record.Status = model.InviteStatusAccepted
@@ -179,7 +202,8 @@ func (r *NATSInviteRepository) MarkAccepted(ctx context.Context, uid, username s
 
 		return newServiceUnavailable(fmt.Sprintf("invite_repository: update invite for mark_accepted (attempt %d)", attempt+1), updateErr)
 	}
-	return nil
+	// All retries exhausted without a successful update.
+	return newServiceUnavailable("invite_repository: mark_accepted: retries exhausted", nil)
 }
 
 // Delete removes the primary invite record and its email secondary-index entry.

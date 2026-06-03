@@ -14,6 +14,11 @@ import (
 // ErrInviteNotFound is returned when no invite record matches the requested key.
 var ErrInviteNotFound = errors.New("invite_not_found")
 
+// ErrAlreadyAccepted is returned by MarkAccepted when the invite record is already
+// in the accepted state. Callers can use this to distinguish a no-op idempotent call
+// from a real state transition and avoid triggering duplicate side-effects.
+var ErrAlreadyAccepted = errors.New("invite_already_accepted")
+
 // InviteStore is the storage interface for invite records.
 // Implementations are expected to be backed by NATS JetStream KeyValue.
 type InviteStore interface {
@@ -33,7 +38,9 @@ type InviteStore interface {
 	// MarkAccepted updates the invite record to status=accepted, sets AcceptedAt
 	// to at, and sets AcceptedBy to username. Returns ErrInviteNotFound when no
 	// record exists for the given uid — callers can use this to distinguish "invite
-	// belongs to another service's flow" from a transient storage error.
+	// belongs to another service's flow" from a transient storage error. Returns
+	// ErrAlreadyAccepted when the record was already in the accepted state, so callers
+	// can gate downstream side-effects (e.g. event publishing) on a real transition.
 	MarkAccepted(ctx context.Context, uid, username string, at time.Time) error
 
 	// Delete removes the invite record and its email secondary-index entry for the

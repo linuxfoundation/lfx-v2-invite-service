@@ -278,6 +278,37 @@ func TestHandleSendInvite_StoreFailureAbortsSend(t *testing.T) {
 	}
 }
 
+// TestHandleSendInvite_EmailSendError_TriggersDeleteRollback verifies that when
+// the invite record is persisted but email dispatch fails, Delete is called to roll
+// back the stored record so a phantom invite is not left in KV.
+func TestHandleSendInvite_EmailSendError_TriggersDeleteRollback(t *testing.T) {
+	sendErr := errors.New("smtp timeout")
+	email := &mocks.EmailSender{
+		SendFunc: func(_ context.Context, _ *model.SendInviteRequest) error {
+			return sendErr
+		},
+	}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	if err == nil {
+		t.Fatal("expected error when email send fails, got nil")
+	}
+	if !errors.Is(err, ErrEmailDispatchFailed) {
+		t.Errorf("expected ErrEmailDispatchFailed, got %v", err)
+	}
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	if len(store.DeleteCalls) != 1 {
+		t.Fatalf("expected 1 store.Delete rollback call, got %d — email-failure rollback not triggered", len(store.DeleteCalls))
+	}
+	if store.DeleteCalls[0] != store.CreateCalls[0].UID {
+		t.Errorf("Delete called with UID %q, want %q (the created invite's UID)", store.DeleteCalls[0], store.CreateCalls[0].UID)
+	}
+}
+
 // TestHandleSendInvite_StructuredObjectsPreferred verifies that when structured
 // Recipient/Inviter/Resource objects are provided, they take precedence over deprecated scalars.
 func TestHandleSendInvite_StructuredObjectsPreferred(t *testing.T) {
