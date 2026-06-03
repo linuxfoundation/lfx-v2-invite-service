@@ -188,15 +188,13 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 		}
 
 		invites, err := InviteReadSvc.GetInvitesByEmail(msgCtx, req.Email)
-		var resp api.GetInvitesByEmailResponse
 		if err != nil {
 			slog.ErrorContext(msgCtx, "get_invites_by_email: store error", "error", err)
-			resp.Error = "internal_error"
-		} else {
-			resp.Invites = invites
+			replyGetByEmailError(msgCtx, msg, "internal_error")
+			return
 		}
 
-		data, marshalErr := json.Marshal(resp)
+		data, marshalErr := json.Marshal(invites)
 		if marshalErr != nil {
 			slog.ErrorContext(msgCtx, "get_invites_by_email: failed to marshal response", "error", marshalErr)
 			replyGetByEmailError(msgCtx, msg, "internal_error")
