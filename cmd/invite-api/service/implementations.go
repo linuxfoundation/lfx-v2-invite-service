@@ -63,7 +63,7 @@ func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
 		},
 	)
 
-	AcceptanceSvc = service.NewAcceptanceService(inviteStore)
+	AcceptanceSvc = service.NewAcceptanceService(inviteStore, nc)
 	InviteReadSvc = service.NewInviteReadService(inviteStore)
 
 	slog.InfoContext(ctx, "infrastructure initialised",

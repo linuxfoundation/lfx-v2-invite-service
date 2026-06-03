@@ -103,6 +103,7 @@ Authoritative subject constants and payload types live in `pkg/api/invite.go`.
 | `lfx.invite-service.get_invite` | Request/reply (consumed) | Callers send `GetInviteRequest{UID}`; invite service replies with `GetInviteResponse` |
 | `lfx.invite-service.get_invites_by_email` | Request/reply (consumed) | Callers send `GetInvitesByEmailRequest{Email}`; invite service replies with `GetInvitesByEmailResponse` |
 | `lfx.email-service.send_email` | Request/reply (outbound) | Forward pre-rendered email to the email service for delivery |
+| `lfx.invite-service.invite_accepted` | Published (outbound) | Published after KV record is marked accepted; carries enriched invite context (recipient, inviter, resource, role) for downstream services. Best-effort — publish failure is logged but does not block the acceptance flow. TODO: switch upstream consumer to JetStream for retry semantics. |
 | `lfx.invite-service.invite.created` | Published (future) | Invite issued |
 | `lfx.invite-service.invite.revoked` | Published (future) | Invite revoked |
 

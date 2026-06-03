@@ -37,6 +37,18 @@ const (
 	// "lfx.invite-service.invite.*" because the publisher is the self-serve web app,
 	// not the invite service. The constant lives here as the authoritative contract location.
 	InviteAcceptedSubject = "lfx.invite.accepted"
+	// InviteServiceAcceptedSubject is published by the invite service after it has
+	// processed an InviteAcceptedSubject event and updated its KV record. It carries
+	// enriched context (recipient, inviter, resource, role) that the original
+	// self-serve event does not include, so downstream services can subscribe here
+	// instead of performing their own invite lookups.
+	//
+	// TODO(reprocessing): the upstream lfx.invite.accepted subscription currently uses
+	// core NATS QueueSubscribe which has no ACK/NAK — a publish failure here is
+	// best-effort and logged but not retried. Switch the upstream consumer to a
+	// JetStream durable consumer so a publish failure can NAK the message and trigger
+	// redelivery.
+	InviteServiceAcceptedSubject = "lfx.invite-service.invite_accepted"
 	// InviteRevokedSubject is published when an invite is revoked.
 	InviteRevokedSubject = "lfx.invite-service.invite.revoked"
 )
@@ -187,4 +199,12 @@ type GetInvitesByEmailRequest struct {
 // On failure only Error is set.
 type GetInvitesByEmailResponse struct {
 	Error string `json:"error,omitempty"`
+}
+
+// InviteServiceAcceptedEvent is published on InviteServiceAcceptedSubject by the
+// invite service after it has processed an acceptance and updated its KV record.
+// It embeds the full Invite so subscribers receive enriched context without needing
+// a separate get_invite lookup.
+type InviteServiceAcceptedEvent struct {
+	Invite
 }

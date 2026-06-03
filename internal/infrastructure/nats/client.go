@@ -62,6 +62,14 @@ func (c *Client) Request(ctx context.Context, subject string, data []byte) ([]by
 	return msg.Data, nil
 }
 
+// Publish sends a fire-and-forget NATS message with no reply expected.
+func (c *Client) Publish(subject string, data []byte) error {
+	if err := c.conn.Publish(subject, data); err != nil {
+		return newServiceUnavailable("NATS publish failed", err)
+	}
+	return nil
+}
+
 // QueueSubscribe registers a core-NATS queue-group subscriber and returns an
 // unsubscribe function the caller must invoke on shutdown.
 func (c *Client) QueueSubscribe(subject, queue string, handler nats.MsgHandler) (func(), error) {
