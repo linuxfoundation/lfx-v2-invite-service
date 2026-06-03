@@ -60,7 +60,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			)
 			resp.Error = sendInviteErrorCode(handlerErr)
 		} else {
-			resp.Invite = &api.InviteData{
+			resp.InviteData = &api.InviteData{
 				UID:       result.InviteUID,
 				Email:     result.RecipientEmail,
 				ExpiresAt: result.ExpiresAt,
@@ -78,8 +78,8 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			return
 		}
 		logArgs := []any{"resource_uid", req.ResolvedResourceUID(), "error", resp.Error}
-		if resp.Invite != nil {
-			logArgs = append(logArgs, "invite_uid", resp.Invite.UID, "expires_at", resp.Invite.ExpiresAt)
+		if resp.InviteData != nil {
+			logArgs = append(logArgs, "invite_uid", resp.InviteData.UID, "expires_at", resp.InviteData.ExpiresAt)
 		}
 		slog.InfoContext(msgCtx, "send_invite reply sent", logArgs...)
 	})

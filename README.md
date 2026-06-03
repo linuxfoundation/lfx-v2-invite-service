@@ -70,15 +70,13 @@ persists a `pending` invite record in KV.
 **Success response:**
 ```json
 {
-  "invite": {
-    "uid": "550e8400-e29b-41d4-a716-446655440000",
-    "email": "alice@example.com",
-    "expires_at": "2025-02-14T10:30:00Z"
-  }
+  "uid": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "alice@example.com",
+  "expires_at": "2025-02-14T10:30:00Z"
 }
 ```
 
-Store `invite.uid` to look up the invite record later or to correlate with the
+Store `uid` to look up the invite record later or to correlate with the
 `lfx.invite.accepted` event.
 
 **Error response:**
@@ -121,30 +119,28 @@ Returns the full invite record for a given invite UID.
 **Success response:**
 ```json
 {
-  "invite": {
-    "uid": "550e8400-e29b-41d4-a716-446655440000",
-    "status": "pending",
-    "recipient": {
-      "name": "Alice Smith",
-      "email": "alice@example.com"
-    },
-    "inviter": {
-      "name": "Bob Jones",
-      "username": "bobjones",
-      "email": "bob@linuxfoundation.org"
-    },
-    "resource": {
-      "uid": "proj-abc123",
-      "name": "My Project",
-      "type": "project"
-    },
-    "role": "Member",
-    "org_name": "The Linux Foundation",
-    "return_url": "https://app.lfx.dev",
-    "expiration_days": 30,
-    "created_at": "2025-01-15T10:30:00Z",
-    "expires_at": "2025-02-14T10:30:00Z"
-  }
+  "uid": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "pending",
+  "recipient": {
+    "name": "Alice Smith",
+    "email": "alice@example.com"
+  },
+  "inviter": {
+    "name": "Bob Jones",
+    "username": "bobjones",
+    "email": "bob@linuxfoundation.org"
+  },
+  "resource": {
+    "uid": "proj-abc123",
+    "name": "My Project",
+    "type": "project"
+  },
+  "role": "Member",
+  "org_name": "The Linux Foundation",
+  "return_url": "https://app.lfx.dev",
+  "expiration_days": 30,
+  "created_at": "2025-01-15T10:30:00Z",
+  "expires_at": "2025-02-14T10:30:00Z"
 }
 ```
 
@@ -153,18 +149,16 @@ includes `accepted_at` and `accepted_by`:
 
 ```json
 {
-  "invite": {
-    "uid": "550e8400-e29b-41d4-a716-446655440000",
-    "status": "accepted",
-    "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
-    "inviter": { "name": "Bob Jones", "username": "bobjones" },
-    "resource": { "uid": "proj-abc123", "name": "My Project", "type": "project" },
-    "role": "Member",
-    "created_at": "2025-01-15T10:30:00Z",
-    "expires_at": "2025-02-14T10:30:00Z",
-    "accepted_at": "2025-01-20T14:05:00Z",
-    "accepted_by": "alice-lfid"
-  }
+  "uid": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "accepted",
+  "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
+  "inviter": { "name": "Bob Jones", "username": "bobjones" },
+  "resource": { "uid": "proj-abc123", "name": "My Project", "type": "project" },
+  "role": "Member",
+  "created_at": "2025-01-15T10:30:00Z",
+  "expires_at": "2025-02-14T10:30:00Z",
+  "accepted_at": "2025-01-20T14:05:00Z",
+  "accepted_by": "alice-lfid"
 }
 ```
 
@@ -328,10 +322,10 @@ func main() {
 		fmt.Println("send failed:", sendResp.Error)
 		return
 	}
-	fmt.Println("invite sent, uid:", sendResp.Invite.UID)
+	fmt.Println("invite sent, uid:", sendResp.UID)
 
 	// Look up the invite record by UID.
-	getReq, _ := json.Marshal(inviteapi.GetInviteRequest{UID: sendResp.Invite.UID})
+	getReq, _ := json.Marshal(inviteapi.GetInviteRequest{UID: sendResp.UID})
 	getReply, _ := nc.RequestWithContext(ctx, inviteapi.GetInviteSubject, getReq)
 
 	var getResp inviteapi.GetInviteResponse

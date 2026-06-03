@@ -113,10 +113,11 @@ type Invite struct {
 }
 
 // SendInviteResponse is the reply payload returned by the invite service on
-// SendInviteSubject. Invite is set on success; Error is set on failure.
+// SendInviteSubject. On success the InviteData fields are inlined at the top level
+// (uid, email, expires_at). On failure only Error is set.
 type SendInviteResponse struct {
-	Invite *InviteData `json:"invite,omitempty"`
-	Error  string      `json:"error,omitempty"`
+	*InviteData
+	Error string `json:"error,omitempty"`
 }
 
 // SendInviteRequest is the NATS payload published on SendInviteSubject by
@@ -170,10 +171,10 @@ type GetInviteRequest struct {
 }
 
 // GetInviteResponse is the reply payload for GetInviteSubject.
-// Invite is set on success; Error is set on failure (e.g. "not_found", "internal_error").
+// On success all Invite fields are inlined at the top level. On failure only Error is set.
 type GetInviteResponse struct {
-	Invite *Invite `json:"invite,omitempty"`
-	Error  string  `json:"error,omitempty"`
+	*Invite
+	Error string `json:"error,omitempty"`
 }
 
 // GetInvitesByEmailRequest is the payload for GetInvitesByEmailSubject.
