@@ -72,6 +72,22 @@ func (c *Client) QueueSubscribe(subject, queue string, handler nats.MsgHandler) 
 	return func() { _ = sub.Unsubscribe() }, nil
 }
 
+// KeyValue binds to an existing NATS JetStream KeyValue bucket by name.
+// The bucket must already exist (created externally via Helm / nack CRD or `nats kv add`).
+// Returns an error if the bucket cannot be found or the JetStream client cannot be created.
+func (c *Client) KeyValue(ctx context.Context, bucket string) (jetstream.KeyValue, error) {
+	js, err := jetstream.New(c.conn)
+	if err != nil {
+		return nil, newServiceUnavailable("failed to create JetStream client", err)
+	}
+	kv, err := js.KeyValue(ctx, bucket)
+	if err != nil {
+		return nil, newServiceUnavailable("failed to bind to KV bucket "+bucket, err)
+	}
+	slog.InfoContext(ctx, "NATS KV bucket bound", "bucket", bucket)
+	return kv, nil
+}
+
 // ConsumeWithJetStream binds a durable JetStream consumer and delivers messages to handler.
 // Messages are ACKed on success and NAKed on handler error; redelivery timing is governed
 // by the ConsumerConfig (MaxDeliver + AckWait). The returned stop function must be called on shutdown.

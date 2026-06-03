@@ -36,7 +36,7 @@ func NewNATSEmailSender(client *Client, subject string) *NATSEmailSender {
 // via NATS request/reply. An empty reply means success.
 func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendInviteRequest) error {
 	envelope := emailapi.SendEmailRequest{
-		To:      req.RecipientEmail,
+		To:      req.ResolvedRecipientEmail(),
 		Subject: smtptmpl.InviteEmailSubject(req),
 		HTML:    smtptmpl.RenderInviteHTML(req),
 		Text:    smtptmpl.RenderInvitePlain(req),
@@ -59,8 +59,8 @@ func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendI
 
 	if len(reply) == 0 {
 		slog.DebugContext(ctx, "email service accepted message",
-			"recipient", redactEmail(req.RecipientEmail),
-			"resource_uid", req.ResourceUID,
+			"recipient", redactEmail(req.ResolvedRecipientEmail()),
+			"resource_uid", req.ResolvedResourceUID(),
 		)
 		return nil
 	}

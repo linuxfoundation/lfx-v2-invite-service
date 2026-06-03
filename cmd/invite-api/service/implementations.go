@@ -20,6 +20,12 @@ var NATSClient *natsinfra.Client
 // NotificationSvc is the wired notification service.
 var NotificationSvc *service.NotificationService
 
+// AcceptanceSvc is the wired invite-acceptance handler.
+var AcceptanceSvc *service.AcceptanceService
+
+// InviteReadSvc is the wired invite read service.
+var InviteReadSvc *service.InviteReadService
+
 // InitInfrastructure initialises all infrastructure dependencies from cfg.
 // Must be called once during startup before StartSubscriptions.
 func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
@@ -36,19 +42,33 @@ func InitInfrastructure(ctx context.Context, cfg AppConfig) error {
 		return fmt.Errorf("INVITE_JWT_SECRET must be at least 32 bytes for HS256 (got %d)", len(cfg.InviteJWTSecret))
 	}
 
+	// Bind to the invites KV bucket. The bucket must already exist (provisioned by
+	// Helm via the nack KeyValue CRD, or with `nats kv add invites` for local dev).
+	invitesKV, err := nc.KeyValue(ctx, cfg.InvitesKVBucket)
+	if err != nil {
+		return fmt.Errorf("bind invites KV bucket %q: %w", cfg.InvitesKVBucket, err)
+	}
+	inviteStore := natsinfra.NewNATSInviteRepository(invitesKV)
+
 	linkGen := authinfra.NewLinkGenerator([]byte(cfg.InviteJWTSecret), cfg.SelfServeBaseURL)
 	emailSender := natsinfra.NewNATSEmailSender(nc, emailapi.SendEmailSubject)
 
 	NotificationSvc = service.NewNotificationService(
 		emailSender,
 		linkGen,
+		inviteStore,
 		service.NotificationConfig{
 			DefaultReturnURL:      cfg.DefaultReturnURL,
 			AllowedReturnURLHosts: cfg.AllowedReturnURLHosts,
 		},
 	)
 
-	slog.InfoContext(ctx, "infrastructure initialised")
+	AcceptanceSvc = service.NewAcceptanceService(inviteStore)
+	InviteReadSvc = service.NewInviteReadService(inviteStore)
+
+	slog.InfoContext(ctx, "infrastructure initialised",
+		"invites_kv_bucket", cfg.InvitesKVBucket,
+	)
 	return nil
 }
 

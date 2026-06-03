@@ -48,7 +48,11 @@ func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL, resourceUID
 }
 
 func newService(email *mocks.EmailSender) *NotificationService {
-	return NewNotificationService(email, &noopLinkGenerator{}, NotificationConfig{DefaultReturnURL: testBaseURL})
+	return NewNotificationService(email, &noopLinkGenerator{}, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
+}
+
+func newServiceWithStore(email *mocks.EmailSender, store *mocks.InviteStore) *NotificationService {
+	return NewNotificationService(email, &noopLinkGenerator{}, store, NotificationConfig{DefaultReturnURL: testBaseURL})
 }
 
 func baseInviteRequest() *model.SendInviteRequest {
@@ -75,8 +79,8 @@ func TestHandleSendInvite_HappyPath(t *testing.T) {
 	if result.InviteUID != "test-invite-uid" {
 		t.Errorf("invite_uid: got %q, want %q", result.InviteUID, "test-invite-uid")
 	}
-	if result.RecipientEmail != req.RecipientEmail {
-		t.Errorf("recipient_email: got %q, want %q", result.RecipientEmail, req.RecipientEmail)
+	if result.RecipientEmail != req.ResolvedRecipientEmail() {
+		t.Errorf("recipient_email: got %q, want %q", result.RecipientEmail, req.ResolvedRecipientEmail())
 	}
 	if result.ExpiresAt.IsZero() {
 		t.Error("expires_at should not be zero")
@@ -85,14 +89,14 @@ func TestHandleSendInvite_HappyPath(t *testing.T) {
 		t.Fatalf("expected 1 email, got %d", len(email.Calls))
 	}
 	n := email.Calls[0]
-	if n.RecipientEmail != req.RecipientEmail {
-		t.Errorf("recipient email: got %q, want %q", n.RecipientEmail, req.RecipientEmail)
+	if n.ResolvedRecipientEmail() != req.ResolvedRecipientEmail() {
+		t.Errorf("recipient email: got %q, want %q", n.ResolvedRecipientEmail(), req.ResolvedRecipientEmail())
 	}
-	if n.InviterName != req.InviterName {
-		t.Errorf("inviter name: got %q, want %q", n.InviterName, req.InviterName)
+	if n.ResolvedInviterName() != req.ResolvedInviterName() {
+		t.Errorf("inviter name: got %q, want %q", n.ResolvedInviterName(), req.ResolvedInviterName())
 	}
-	if n.ResourceName != req.ResourceName {
-		t.Errorf("resource name: got %q, want %q", n.ResourceName, req.ResourceName)
+	if n.ResolvedResourceName() != req.ResolvedResourceName() {
+		t.Errorf("resource name: got %q, want %q", n.ResolvedResourceName(), req.ResolvedResourceName())
 	}
 	if n.Role != req.Role {
 		t.Errorf("role: got %q, want %q", n.Role, req.Role)
@@ -104,7 +108,7 @@ func TestHandleSendInvite_MissingRecipientEmail_ReturnsError(t *testing.T) {
 	svc := newService(email)
 
 	req := baseInviteRequest()
-	req.RecipientEmail = ""
+	req.RecipientEmail = "" //nolint:staticcheck // testing deprecated scalar fallback: no Recipient object, empty scalar → error
 	_, err := svc.HandleSendInvite(context.Background(), req)
 	if err == nil {
 		t.Fatal("expected error for missing recipient email, got nil")
@@ -137,15 +141,15 @@ func TestHandleSendInvite_NoInviter(t *testing.T) {
 	svc := newService(email)
 
 	req := baseInviteRequest()
-	req.InviterName = ""
+	req.InviterName = "" //nolint:staticcheck // testing deprecated scalar fallback: no Inviter object, empty scalar → no inviter in email
 	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 	if len(email.Calls) != 1 {
 		t.Fatalf("expected 1 email, got %d", len(email.Calls))
 	}
-	if email.Calls[0].InviterName != "" {
-		t.Errorf("expected empty inviter name, got %q", email.Calls[0].InviterName)
+	if email.Calls[0].ResolvedInviterName() != "" {
+		t.Errorf("expected empty inviter name, got %q", email.Calls[0].ResolvedInviterName())
 	}
 }
 
@@ -202,7 +206,7 @@ func TestHandleSendInvite_MemberRole_Accepted(t *testing.T) {
 func TestHandleSendInvite_LinkGeneratorFailure_NoEmailSent(t *testing.T) {
 	linkErr := errors.New("signing key unavailable")
 	email := &mocks.EmailSender{}
-	svc := NewNotificationService(email, &errorLinkGenerator{err: linkErr}, NotificationConfig{DefaultReturnURL: testBaseURL})
+	svc := NewNotificationService(email, &errorLinkGenerator{err: linkErr}, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
 
 	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
 	if err == nil {
@@ -210,6 +214,113 @@ func TestHandleSendInvite_LinkGeneratorFailure_NoEmailSent(t *testing.T) {
 	}
 	if len(email.Calls) != 0 {
 		t.Errorf("expected no email sent when link generation fails, got %d call(s)", len(email.Calls))
+	}
+}
+
+// TestHandleSendInvite_InviteStorePersistsPending verifies that a successful send
+// creates a pending InviteRecord in the store with the destination URL (not the JWT link).
+func TestHandleSendInvite_InviteStorePersistsPending(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	originalURL := req.ReturnURL
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	record := store.CreateCalls[0]
+	if record.Status != model.InviteStatusPending {
+		t.Errorf("status: got %q, want %q", record.Status, model.InviteStatusPending)
+	}
+	if record.Recipient.Email != "alice@example.com" {
+		t.Errorf("recipient.email: got %q, want %q", record.Recipient.Email, "alice@example.com")
+	}
+	if record.ReturnURL != originalURL {
+		t.Errorf("return_url should be original destination URL %q, got %q (JWT link was stored instead)", originalURL, record.ReturnURL)
+	}
+	if record.UID == "" {
+		t.Error("record.UID should not be empty")
+	}
+	if record.ExpiresAt.IsZero() {
+		t.Error("record.ExpiresAt should not be zero")
+	}
+}
+
+// TestHandleSendInvite_StoreFailureDoesNotFailSend verifies that a KV write failure
+// does not propagate as an error — the email has already been sent.
+func TestHandleSendInvite_StoreFailureDoesNotFailSend(t *testing.T) {
+	buf := captureLogs(t)
+
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{
+		CreateFunc: func(_ context.Context, _ *model.InviteRecord) error {
+			return errors.New("kv unavailable")
+		},
+	}
+	svc := newServiceWithStore(email, store)
+
+	result, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	if err != nil {
+		t.Fatalf("expected nil error despite store failure, got %v", err)
+	}
+	if result.InviteUID == "" {
+		t.Error("expected invite_uid in result even when store fails")
+	}
+	if len(email.Calls) != 1 {
+		t.Errorf("expected 1 email sent, got %d", len(email.Calls))
+	}
+	// A warning should have been logged about the store failure.
+	if !strings.Contains(buf.String(), "invite_store") {
+		t.Error("expected invite_store error log entry, found none")
+	}
+}
+
+// TestHandleSendInvite_StructuredObjectsPreferred verifies that when structured
+// Recipient/Inviter/Resource objects are provided, they take precedence over deprecated scalars.
+func TestHandleSendInvite_StructuredObjectsPreferred(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := &model.SendInviteRequest{
+		// Structured objects (preferred).
+		Recipient: &model.Recipient{Name: "Alice Structured", Email: "alice-structured@example.com"},
+		Inviter:   &model.Inviter{Name: "Bob Structured", Username: "bob-s", Email: "bob@example.com"},
+		Resource:  &model.InviteResource{UID: "structured-res", Name: "Structured Project", Type: "project"},
+		// Deprecated scalars — should be ignored when structured objects are present.
+		RecipientEmail: "alice-scalar@example.com",
+		RecipientName:  "Alice Scalar",
+		InviterName:    "Bob Scalar",
+		ResourceUID:    "scalar-res",
+		ResourceName:   "Scalar Project",
+		Role:           string(model.RoleManage),
+	}
+
+	result, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RecipientEmail != "alice-structured@example.com" {
+		t.Errorf("result.RecipientEmail: got %q, want structured email", result.RecipientEmail)
+	}
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	record := store.CreateCalls[0]
+	if record.Recipient.Email != "alice-structured@example.com" {
+		t.Errorf("record.Recipient.Email: got %q, want structured email", record.Recipient.Email)
+	}
+	if record.Inviter.Username != "bob-s" {
+		t.Errorf("record.Inviter.Username: got %q, want %q", record.Inviter.Username, "bob-s")
+	}
+	if record.Resource.UID != "structured-res" {
+		t.Errorf("record.Resource.UID: got %q, want %q", record.Resource.UID, "structured-res")
 	}
 }
 

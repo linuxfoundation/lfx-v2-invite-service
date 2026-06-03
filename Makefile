@@ -33,6 +33,7 @@ deps: setup
 
 .PHONY: build
 build:
+	mkdir -p bin/lfx-v2-invite-service
 	go build \
 		-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)" \
 		-o bin/$(APP_NAME) ./cmd/invite-api

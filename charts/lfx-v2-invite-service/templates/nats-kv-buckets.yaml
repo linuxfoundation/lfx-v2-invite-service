@@ -1,0 +1,24 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+---
+{{- if .Values.nats.kv_bucket_invites.creation }}
+apiVersion: jetstream.nats.io/v1beta2
+kind: KeyValue
+metadata:
+  name: {{ .Values.nats.kv_bucket_invites.name }}
+  namespace: lfx
+  {{- if .Values.nats.kv_bucket_invites.keep }}
+  annotations:
+    "helm.sh/resource-policy": keep
+  {{- end }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+spec:
+  bucket: {{ .Values.nats.kv_bucket_invites.name }}
+  replicas: {{ .Values.nats.kv_bucket_invites.replicas }}
+  history: {{ .Values.nats.kv_bucket_invites.history }}
+  storage: {{ .Values.nats.kv_bucket_invites.storage }}
+  maxValueSize: {{ .Values.nats.kv_bucket_invites.maxValueSize }}
+  maxBytes: {{ .Values.nats.kv_bucket_invites.maxBytes }}
+  compression: {{ .Values.nats.kv_bucket_invites.compression }}
+{{- end }}

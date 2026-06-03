@@ -47,20 +47,21 @@ func buildTemplateData(req *model.SendInviteRequest) inviteEmailData {
 	if orgName == "" {
 		orgName = "LFX"
 	}
-	resourceType := req.ResourceType
+	resourceType := req.ResolvedResourceType()
 	if resourceType == "" {
 		resourceType = "resource"
 	}
+	inviterName := req.ResolvedInviterName()
 	return inviteEmailData{
-		RecipientFirstName: firstName(req.RecipientName),
-		InviterFirstName:   firstName(req.InviterName),
-		InviterFullName:    req.InviterName,
-		ResourceName:       req.ResourceName,
+		RecipientFirstName: firstName(req.ResolvedRecipientName()),
+		InviterFirstName:   firstName(inviterName),
+		InviterFullName:    inviterName,
+		ResourceName:       req.ResolvedResourceName(),
 		ResourceType:       resourceType,
 		Role:               req.Role,
 		ReturnURL:          req.ReturnURL,
 		OrgName:            orgName,
-		HasInviter:         req.InviterName != "",
+		HasInviter:         inviterName != "",
 	}
 }
 
@@ -87,10 +88,10 @@ func InviteEmailSubject(req *model.SendInviteRequest) string {
 	data := buildTemplateData(req)
 	var buf bytes.Buffer
 	if err := subjectTmpl.Execute(&buf, data); err != nil {
-		if req.InviterName != "" {
-			return sanitizeSingleLine(fmt.Sprintf("%s invited you to join %s", firstName(req.InviterName), req.ResourceName))
+		if inviterName := req.ResolvedInviterName(); inviterName != "" {
+			return sanitizeSingleLine(fmt.Sprintf("%s invited you to join %s", firstName(inviterName), req.ResolvedResourceName()))
 		}
-		return sanitizeSingleLine(fmt.Sprintf("You've been invited to join %s", req.ResourceName))
+		return sanitizeSingleLine(fmt.Sprintf("You've been invited to join %s", req.ResolvedResourceName()))
 	}
 	return sanitizeSingleLine(buf.String())
 }
@@ -100,7 +101,7 @@ func RenderInviteHTML(req *model.SendInviteRequest) string {
 	data := buildTemplateData(req)
 	var buf bytes.Buffer
 	if err := htmlTmpl.Execute(&buf, data); err != nil {
-		return fmt.Sprintf("<p>You have been invited to join %s.</p>", htmltmpl.HTMLEscapeString(req.ResourceName))
+		return fmt.Sprintf("<p>You have been invited to join %s.</p>", htmltmpl.HTMLEscapeString(req.ResolvedResourceName()))
 	}
 	return buf.String()
 }
@@ -110,7 +111,7 @@ func RenderInvitePlain(req *model.SendInviteRequest) string {
 	data := buildTemplateData(req)
 	var buf bytes.Buffer
 	if err := plainTmpl.Execute(&buf, data); err != nil {
-		return fmt.Sprintf("You have been invited to join %s.\n\n%s", req.ResourceName, req.ReturnURL)
+		return fmt.Sprintf("You have been invited to join %s.\n\n%s", req.ResolvedResourceName(), req.ReturnURL)
 	}
 	return buf.String()
 }

@@ -15,6 +15,15 @@ const (
 	// non-LFID user is added to a resource. The invite service renders the email
 	// template, forwards to the email service, and replies with SendInviteResponse.
 	SendInviteSubject = "lfx.invite-service.send_invite"
+
+	// GetInviteSubject is used for NATS request/reply to look up an invite record by UID.
+	// Callers send GetInviteRequest; the invite service replies with GetInviteResponse.
+	GetInviteSubject = "lfx.invite-service.get_invite"
+
+	// GetInvitesByEmailSubject is used for NATS request/reply to look up all invite
+	// records for a given email address. Callers send GetInvitesByEmailRequest; the
+	// invite service replies with GetInvitesByEmailResponse.
+	GetInvitesByEmailSubject = "lfx.invite-service.get_invites_by_email"
 )
 
 // Subjects published by the invite service.
@@ -32,6 +41,16 @@ const (
 	InviteRevokedSubject = "lfx.invite-service.invite.revoked"
 )
 
+// InviteStatus represents the lifecycle state of an invite record.
+type InviteStatus string
+
+const (
+	// InviteStatusPending means the invite has been sent but not yet accepted.
+	InviteStatusPending InviteStatus = "pending"
+	// InviteStatusAccepted means the invited user has completed the acceptance flow.
+	InviteStatusAccepted InviteStatus = "accepted"
+)
+
 // InviteRole represents the access level to communicate to an invited user.
 type InviteRole string
 
@@ -45,11 +64,52 @@ const (
 	InviteRoleMember InviteRole = "Member"
 )
 
+// Inviter holds structured identity for the person who sent the invite.
+type Inviter struct {
+	Name     string `json:"name,omitempty"`
+	Username string `json:"username,omitempty"`
+	Email    string `json:"email,omitempty"`
+	Avatar   string `json:"avatar,omitempty"`
+}
+
+// Recipient holds structured identity for the person being invited.
+type Recipient struct {
+	Name     string `json:"name,omitempty"`
+	Email    string `json:"email,omitempty"`
+	Username string `json:"username,omitempty"`
+	Avatar   string `json:"avatar,omitempty"`
+}
+
+// Resource holds the structured representation of the resource the invite is for.
+type Resource struct {
+	UID  string `json:"uid,omitempty"`
+	Name string `json:"name,omitempty"`
+	Type string `json:"type,omitempty"`
+}
+
 // InviteData holds the invite metadata returned on a successful send_invite reply.
 type InviteData struct {
 	UID       string    `json:"uid"`
 	Email     string    `json:"email"`
 	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// Invite is the read-API view of a stored invite record, returned by get_invite
+// and get_invites_by_email subjects.
+type Invite struct {
+	UID            string       `json:"uid"`
+	Status         InviteStatus `json:"status"`
+	Recipient      Recipient    `json:"recipient"`
+	Inviter        Inviter      `json:"inviter"`
+	Resource       Resource     `json:"resource"`
+	Role           string       `json:"role"`
+	OrgName        string       `json:"org_name,omitempty"`
+	ReturnURL      string       `json:"return_url,omitempty"`
+	ExpirationDays int          `json:"expiration_days,omitempty"`
+	CreatedAt      time.Time    `json:"created_at"`
+	ExpiresAt      time.Time    `json:"expires_at"`
+	AcceptedAt     *time.Time   `json:"accepted_at,omitempty"`
+	AcceptedBy     string       `json:"accepted_by,omitempty"`
 }
 
 // SendInviteResponse is the reply payload returned by the invite service on
@@ -62,22 +122,69 @@ type SendInviteResponse struct {
 // SendInviteRequest is the NATS payload published on SendInviteSubject by
 // resource services to request that the invite service sends an invite email
 // to a user who does not yet have an LFID.
+//
+// Preferred: populate the structured Recipient, Inviter, and Resource objects.
+// Deprecated fields (RecipientEmail, RecipientName, InviterName, ResourceUID,
+// ResourceName, ResourceType) are retained for backward-compatibility; the
+// invite service prefers the structured objects and falls back to the scalar
+// fields when the objects are absent.
 type SendInviteRequest struct {
-	RecipientEmail string `json:"recipient_email"`
-	RecipientName  string `json:"recipient_name"`
-	InviterName    string `json:"inviter_name,omitempty"`
-	ResourceUID    string `json:"resource_uid"`
-	ResourceName   string `json:"resource_name"`
-	Role           string `json:"role"`
-	ReturnURL      string `json:"return_url,omitempty"`
-	// ResourceType is the kind of resource the recipient is being invited to
-	// (e.g. "project", "group", "meeting"). Used in the invite email body.
-	// Defaults to "resource" when empty.
+	// Structured fields (preferred).
+	Recipient *Recipient `json:"recipient,omitempty"`
+	Inviter   *Inviter   `json:"inviter,omitempty"`
+	Resource  *Resource  `json:"resource,omitempty"`
+
+	// Deprecated: use Recipient.Email instead.
+	RecipientEmail string `json:"recipient_email,omitempty"`
+	// Deprecated: use Recipient.Name instead.
+	RecipientName string `json:"recipient_name,omitempty"`
+	// Deprecated: use Inviter.Name instead.
+	InviterName string `json:"inviter_name,omitempty"`
+	// Deprecated: use Resource.UID instead.
+	ResourceUID string `json:"resource_uid,omitempty"`
+	// Deprecated: use Resource.Name instead.
+	ResourceName string `json:"resource_name,omitempty"`
+	// Deprecated: use Resource.Type instead.
 	ResourceType string `json:"resource_type,omitempty"`
+
+	Role      string `json:"role"`
+	ReturnURL string `json:"return_url,omitempty"`
 	// OrgName is the foundation or project name used in the email signature
 	// ("The X Team"). Defaults to "LFX" when empty.
 	OrgName string `json:"org_name,omitempty"`
 	// ExpirationDays is the number of days the invite token should be valid.
 	// If 0 or omitted, defaults to 30 days. Maximum is 90 days.
 	ExpirationDays int `json:"expiration_days,omitempty"`
+}
+
+// InviteAcceptedEvent is the payload published on InviteAcceptedSubject by the
+// LFX self-serve web app once a user completes the invite acceptance flow.
+type InviteAcceptedEvent struct {
+	InviteUID string `json:"invite_uid"`
+	Username  string `json:"username"`
+}
+
+// GetInviteRequest is the payload for GetInviteSubject.
+type GetInviteRequest struct {
+	UID string `json:"uid"`
+}
+
+// GetInviteResponse is the reply payload for GetInviteSubject.
+// Invite is set on success; Error is set on failure (e.g. "not_found", "internal_error").
+type GetInviteResponse struct {
+	Invite *Invite `json:"invite,omitempty"`
+	Error  string  `json:"error,omitempty"`
+}
+
+// GetInvitesByEmailRequest is the payload for GetInvitesByEmailSubject.
+type GetInvitesByEmailRequest struct {
+	Email string `json:"email"`
+}
+
+// GetInvitesByEmailResponse is the reply payload for GetInvitesByEmailSubject.
+// Invites contains all stored invite records for the given email across all resources
+// and statuses. Error is set on failure.
+type GetInvitesByEmailResponse struct {
+	Invites []Invite `json:"invites"`
+	Error   string   `json:"error,omitempty"`
 }
