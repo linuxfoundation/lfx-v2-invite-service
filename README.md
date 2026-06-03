@@ -399,7 +399,7 @@ nats kv add invites --history=20 --storage=file
 
 - **No HTTP API** — the service is a pure NATS subscriber. All operations use request/reply or fire-and-forget events.
 - **Template ownership** — the invite service owns and renders the email template; the email service (`lfx.email-service.send_email`) handles SMTP delivery. Callers publish structured fields — no pre-rendered HTML required.
-- **Best-effort KV persist** — if the KV write fails after a successful email send, the failure is logged but does not fail the `send_invite` reply. The email has already been dispatched.
+- **Fail-closed KV persist** — the invite record is written to KV *before* the email is sent. A KV write failure aborts the operation and no email is dispatched. If the email send fails after a successful KV write, a best-effort rollback delete is attempted and `email_dispatch_failed` is returned to the caller.
 - **Own queue group for acceptance** — the service uses `invite-service-acceptance` as its queue group for `lfx.invite.accepted`, so it receives an independent copy alongside other subscribers (e.g. project-service).
 - **Config injected via struct** — all env vars are read in `cmd/invite-api/service/config.go` and passed into service constructors; no `os.Getenv` calls in business logic.
 

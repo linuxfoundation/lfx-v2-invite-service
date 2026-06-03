@@ -68,11 +68,11 @@ func NewNotificationService(email port.EmailSender, linkGen LinkGenerator, store
 	}
 }
 
-// HandleSendInvite processes a send-invite request from a resource service,
-// dispatches the invite notification email, persists the invite record to KV,
-// and returns the invite UUID so the caller can store it.
-// Returns an error if the email could not be sent; KV write failures are logged
-// but do not fail the operation (the email has already been dispatched).
+// HandleSendInvite processes a send-invite request from a resource service.
+// It persists the invite record to KV first, then dispatches the notification
+// email. A KV write failure aborts the operation before the email is sent.
+// An email dispatch failure attempts a best-effort KV rollback and returns
+// ErrEmailDispatchFailed.
 func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.SendInviteRequest) (SendInviteResult, error) {
 	// Resolve email and resource UID from structured objects or deprecated scalars.
 	rawEmail := req.ResolvedRecipientEmail()

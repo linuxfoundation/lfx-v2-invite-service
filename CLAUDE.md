@@ -98,10 +98,10 @@ Authoritative subject constants and payload types live in `pkg/api/invite.go`.
 
 | Subject | Direction | Description |
 |---|---|---|
-| `lfx.invite-service.send_invite` | Request/reply (consumed) | Resource services send `SendInviteRequest`; invite service replies with `SendInviteResponse{InviteUID}` and persists the invite record |
+| `lfx.invite-service.send_invite` | Request/reply (consumed) | Resource services send `SendInviteRequest`; invite service replies with `SendInviteResponse` (flat: `uid`, `email`, `expires_at` at top level) and persists the invite record |
 | `lfx.invite.accepted` | Event (consumed) | Published by the self-serve web app once a user accepts; invite service marks the KV record as accepted. Own queue group `invite-service-acceptance` — consumed alongside project-service |
 | `lfx.invite-service.get_invite` | Request/reply (consumed) | Callers send `GetInviteRequest{UID}`; invite service replies with `GetInviteResponse` |
-| `lfx.invite-service.get_invites_by_email` | Request/reply (consumed) | Callers send `GetInvitesByEmailRequest{Email}`; invite service replies with `GetInvitesByEmailResponse` |
+| `lfx.invite-service.get_invites_by_email` | Request/reply (consumed) | Callers send `GetInvitesByEmailRequest{Email}`; on success invite service replies with a bare `[]Invite` JSON array; on error replies with `GetInvitesByEmailResponse{Error}` |
 | `lfx.email-service.send_email` | Request/reply (outbound) | Forward pre-rendered email to the email service for delivery |
 | `lfx.invite-service.invite_accepted` | Published (outbound) | Published after KV record is marked accepted; carries enriched invite context (recipient, inviter, resource, role) for downstream services. Best-effort — publish failure is logged but does not block the acceptance flow. TODO: switch upstream consumer to JetStream for retry semantics. |
 | `lfx.invite-service.invite.created` | Published (future) | Invite issued |
