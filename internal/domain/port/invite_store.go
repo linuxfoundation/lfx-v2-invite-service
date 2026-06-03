@@ -35,4 +35,9 @@ type InviteStore interface {
 	// record exists for the given uid — callers can use this to distinguish "invite
 	// belongs to another service's flow" from a transient storage error.
 	MarkAccepted(ctx context.Context, uid, username string, at time.Time) error
+
+	// Delete removes the invite record and its email secondary-index entry for the
+	// given UID. Used to roll back a persisted record when the subsequent email
+	// dispatch fails. Returns ErrInviteNotFound when no record exists.
+	Delete(ctx context.Context, uid string) error
 }

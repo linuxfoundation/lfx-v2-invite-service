@@ -16,11 +16,13 @@ type InviteStore struct {
 	GetByUIDFunc     func(ctx context.Context, uid string) (*model.InviteRecord, error)
 	GetByEmailFunc   func(ctx context.Context, email string) ([]*model.InviteRecord, error)
 	MarkAcceptedFunc func(ctx context.Context, uid, username string, at time.Time) error
+	DeleteFunc       func(ctx context.Context, uid string) error
 
 	CreateCalls       []*model.InviteRecord
 	GetByUIDCalls     []string
 	GetByEmailCalls   []string
 	MarkAcceptedCalls []MarkAcceptedCall
+	DeleteCalls       []string
 }
 
 // MarkAcceptedCall records the arguments of a single MarkAccepted call.
@@ -58,6 +60,14 @@ func (m *InviteStore) MarkAccepted(ctx context.Context, uid, username string, at
 	m.MarkAcceptedCalls = append(m.MarkAcceptedCalls, MarkAcceptedCall{UID: uid, Username: username, At: at})
 	if m.MarkAcceptedFunc != nil {
 		return m.MarkAcceptedFunc(ctx, uid, username, at)
+	}
+	return nil
+}
+
+func (m *InviteStore) Delete(ctx context.Context, uid string) error {
+	m.DeleteCalls = append(m.DeleteCalls, uid)
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(ctx, uid)
 	}
 	return nil
 }

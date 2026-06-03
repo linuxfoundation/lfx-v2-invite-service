@@ -5,6 +5,7 @@ package nats
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -91,7 +92,7 @@ func (r *NATSInviteRepository) GetByUID(ctx context.Context, uid string) (*model
 // GetByEmail retrieves all invite records for the given email address (case-insensitive).
 // Returns an empty slice when no matching records exist.
 func (r *NATSInviteRepository) GetByEmail(ctx context.Context, email string) ([]*model.InviteRecord, error) {
-	normalized := normalizeEmail(email)
+	normalized := encodeEmailForKey(email)
 	prefix := emailIndexPrefix + normalized + "/"
 
 	keys, err := r.kv.ListKeys(ctx)
@@ -181,14 +182,60 @@ func (r *NATSInviteRepository) MarkAccepted(ctx context.Context, uid, username s
 	return nil
 }
 
+// Delete removes the primary invite record and its email secondary-index entry.
+// Used to roll back a stored record when the subsequent email dispatch fails.
+// Returns port.ErrInviteNotFound when no primary record exists for the given UID.
+func (r *NATSInviteRepository) Delete(ctx context.Context, uid string) error {
+	// Read the record first so we can derive the email index key.
+	entry, err := r.kv.Get(ctx, uid)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return port.ErrInviteNotFound
+		}
+		return newServiceUnavailable("invite_repository: get invite for delete", err)
+	}
+
+	var record model.InviteRecord
+	if err := json.Unmarshal(entry.Value(), &record); err != nil {
+		return newUnexpected("invite_repository: unmarshal invite for delete", err)
+	}
+
+	// Delete the primary record.
+	if err := r.kv.Delete(ctx, uid); err != nil && !errors.Is(err, jetstream.ErrKeyNotFound) {
+		return newServiceUnavailable("invite_repository: delete invite record", err)
+	}
+
+	// Delete the email index entry. A missing index entry is not an error — it
+	// may never have been written if Create failed partway through.
+	indexKey := emailIndexKey(record.Recipient.Email, uid)
+	if err := r.kv.Delete(ctx, indexKey); err != nil && !errors.Is(err, jetstream.ErrKeyNotFound) {
+		slog.ErrorContext(ctx, "invite_repository: failed to delete email index entry — primary record already removed",
+			"invite_uid", uid,
+			"error", err,
+		)
+	}
+
+	return nil
+}
+
 // emailIndexKey returns the secondary-index KV key for an email+uid pair.
 func emailIndexKey(email, uid string) string {
-	return emailIndexPrefix + normalizeEmail(email) + "/" + uid
+	return emailIndexPrefix + encodeEmailForKey(email) + "/" + uid
 }
 
 // normalizeEmail lowercases and trims an email address for consistent key lookups.
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// encodeEmailForKey base64url-encodes the normalized email so it is safe to use
+// as a NATS KV key segment. NATS keys only allow [A-Za-z0-9-_=./]; raw email
+// addresses contain characters like '@' and '+' that are not permitted.
+// RawURLEncoding produces only [A-Za-z0-9-_] (no padding '='), which is a strict
+// subset of the allowed set. Both write (emailIndexKey) and read (GetByEmail)
+// encode with the same function so prefix scans remain correct.
+func encodeEmailForKey(email string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(normalizeEmail(email)))
 }
 
 // isRevisionMismatch returns true when err indicates a NATS KV optimistic-concurrency failure.

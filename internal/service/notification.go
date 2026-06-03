@@ -142,6 +142,23 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	}
 	req = &reqCopy
 
+	// Persist the invite record before sending the email. If the store write fails
+	// we return an error immediately — we never send an invite we cannot track.
+	if s.inviteStore != nil {
+		record := buildInviteRecord(inviteUID, req, destURL, expiresAt)
+		if storeErr := s.inviteStore.Create(ctx, record); storeErr != nil {
+			slog.ErrorContext(ctx, "invite_store: failed to persist invite record — aborting send",
+				"invite_uid", inviteUID,
+				"resource_uid", resourceUID,
+				"error", storeErr,
+			)
+			return SendInviteResult{}, fmt.Errorf("persist invite record for resource %s: %w", resourceUID, storeErr)
+		}
+	} else {
+		slog.WarnContext(ctx, "invite_store: no store configured — invite record not persisted",
+			"invite_uid", inviteUID)
+	}
+
 	if err := s.emailSender.SendNotification(ctx, req); err != nil {
 		slog.ErrorContext(ctx, "failed to send invite notification",
 			"resource_uid", resourceUID,
@@ -155,6 +172,17 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 			DeliveryState:  model.DeliveryStateFailed,
 			ErrorMessage:   err.Error(),
 		})
+		// Best-effort rollback: remove the record we just stored so a failed send
+		// does not leave a phantom invite in KV.
+		if s.inviteStore != nil {
+			if deleteErr := s.inviteStore.Delete(ctx, inviteUID); deleteErr != nil {
+				slog.ErrorContext(ctx, "invite_store: failed to roll back invite record after send failure",
+					"invite_uid", inviteUID,
+					"resource_uid", resourceUID,
+					"error", deleteErr,
+				)
+			}
+		}
 		return SendInviteResult{}, fmt.Errorf("%w: send invite notification for resource %s: %w", ErrEmailDispatchFailed, resourceUID, err)
 	}
 
@@ -170,22 +198,6 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		Role:           role,
 		DeliveryState:  model.DeliveryStateSent,
 	})
-
-	// Persist the invite record to KV. This is best-effort: the email has already
-	// been sent so we log and continue rather than returning an error on KV failure.
-	if s.inviteStore != nil {
-		record := buildInviteRecord(inviteUID, req, destURL, expiresAt)
-		if storeErr := s.inviteStore.Create(ctx, record); storeErr != nil {
-			slog.ErrorContext(ctx, "invite_store: failed to persist invite record — email was sent; record may be absent or stored without email index",
-				"invite_uid", inviteUID,
-				"resource_uid", resourceUID,
-				"error", storeErr,
-			)
-		}
-	} else {
-		slog.WarnContext(ctx, "invite_store: no store configured — invite record not persisted",
-			"invite_uid", inviteUID)
-	}
 
 	return SendInviteResult{
 		InviteUID:      inviteUID,

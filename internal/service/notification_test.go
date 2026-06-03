@@ -252,9 +252,10 @@ func TestHandleSendInvite_InviteStorePersistsPending(t *testing.T) {
 	}
 }
 
-// TestHandleSendInvite_StoreFailureDoesNotFailSend verifies that a KV write failure
-// does not propagate as an error — the email has already been sent.
-func TestHandleSendInvite_StoreFailureDoesNotFailSend(t *testing.T) {
+// TestHandleSendInvite_StoreFailureAbortsSend verifies that a KV write failure
+// returns an error and does not dispatch the email — we never send an invite we
+// cannot track.
+func TestHandleSendInvite_StoreFailureAbortsSend(t *testing.T) {
 	buf := captureLogs(t)
 
 	email := &mocks.EmailSender{}
@@ -265,17 +266,13 @@ func TestHandleSendInvite_StoreFailureDoesNotFailSend(t *testing.T) {
 	}
 	svc := newServiceWithStore(email, store)
 
-	result, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
-	if err != nil {
-		t.Fatalf("expected nil error despite store failure, got %v", err)
+	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	if err == nil {
+		t.Fatal("expected error when store fails, got nil")
 	}
-	if result.InviteUID == "" {
-		t.Error("expected invite_uid in result even when store fails")
+	if len(email.Calls) != 0 {
+		t.Errorf("expected no email sent when store fails, got %d", len(email.Calls))
 	}
-	if len(email.Calls) != 1 {
-		t.Errorf("expected 1 email sent, got %d", len(email.Calls))
-	}
-	// A warning should have been logged about the store failure.
 	if !strings.Contains(buf.String(), "invite_store") {
 		t.Error("expected invite_store error log entry, found none")
 	}
