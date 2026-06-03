@@ -147,7 +147,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	if s.inviteStore != nil {
 		record := buildInviteRecord(inviteUID, req, destURL, expiresAt)
 		if storeErr := s.inviteStore.Create(ctx, record); storeErr != nil {
-			slog.ErrorContext(ctx, "invite_store: failed to persist invite record — aborting send",
+			slog.ErrorContext(ctx, "invite_store: failed to fully persist invite record (primary may be written, index inconsistent) — aborting send",
 				"invite_uid", inviteUID,
 				"resource_uid", resourceUID,
 				"error", storeErr,

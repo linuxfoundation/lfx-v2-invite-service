@@ -79,22 +79,9 @@ func (s *AcceptanceService) publishAccepted(ctx context.Context, inviteUID strin
 		return
 	}
 
-	evt := api.InviteServiceAcceptedEvent{
-		Invite: api.Invite{
-			UID:        record.UID,
-			Status:     api.InviteStatusAccepted,
-			Recipient:  api.Recipient{Name: record.Recipient.Name, Email: record.Recipient.Email, Username: record.Recipient.Username, Avatar: record.Recipient.Avatar},
-			Inviter:    api.Inviter{Name: record.Inviter.Name, Username: record.Inviter.Username, Email: record.Inviter.Email, Avatar: record.Inviter.Avatar},
-			Resource:   api.Resource{UID: record.Resource.UID, Name: record.Resource.Name, Type: record.Resource.Type},
-			Role:       record.Role,
-			OrgName:    record.OrgName,
-			ReturnURL:  record.ReturnURL,
-			CreatedAt:  record.CreatedAt,
-			ExpiresAt:  record.ExpiresAt,
-			AcceptedAt: record.AcceptedAt,
-			AcceptedBy: record.AcceptedBy,
-		},
-	}
+	inv := domainToAPIInvite(record)
+	inv.Status = api.InviteStatusAccepted
+	evt := api.InviteServiceAcceptedEvent{Invite: inv}
 
 	data, err := json.Marshal(evt)
 	if err != nil {

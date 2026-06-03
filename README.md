@@ -273,7 +273,7 @@ the self-serve web app.
 ### Use with Go
 
 The `pkg/api` package exports subject constants and request/response types for
-all four NATS interactions.
+all NATS interactions consumed and published by the invite service.
 
 ```bash
 go get github.com/linuxfoundation/lfx-v2-invite-service/pkg/api
