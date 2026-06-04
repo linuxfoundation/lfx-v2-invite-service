@@ -62,6 +62,14 @@ func (c *Client) Request(ctx context.Context, subject string, data []byte) ([]by
 	return msg.Data, nil
 }
 
+// Publish sends a fire-and-forget NATS message with no reply expected.
+func (c *Client) Publish(subject string, data []byte) error {
+	if err := c.conn.Publish(subject, data); err != nil {
+		return newServiceUnavailable("NATS publish failed", err)
+	}
+	return nil
+}
+
 // QueueSubscribe registers a core-NATS queue-group subscriber and returns an
 // unsubscribe function the caller must invoke on shutdown.
 func (c *Client) QueueSubscribe(subject, queue string, handler nats.MsgHandler) (func(), error) {
@@ -70,6 +78,22 @@ func (c *Client) QueueSubscribe(subject, queue string, handler nats.MsgHandler) 
 		return nil, newServiceUnavailable("failed to subscribe to "+subject, err)
 	}
 	return func() { _ = sub.Unsubscribe() }, nil
+}
+
+// KeyValue binds to an existing NATS JetStream KeyValue bucket by name.
+// The bucket must already exist (created externally via Helm / nack CRD or `nats kv add`).
+// Returns an error if the bucket cannot be found or the JetStream client cannot be created.
+func (c *Client) KeyValue(ctx context.Context, bucket string) (jetstream.KeyValue, error) {
+	js, err := jetstream.New(c.conn)
+	if err != nil {
+		return nil, newServiceUnavailable("failed to create JetStream client", err)
+	}
+	kv, err := js.KeyValue(ctx, bucket)
+	if err != nil {
+		return nil, newServiceUnavailable("failed to bind to KV bucket "+bucket, err)
+	}
+	slog.InfoContext(ctx, "NATS KV bucket bound", "bucket", bucket)
+	return kv, nil
 }
 
 // ConsumeWithJetStream binds a durable JetStream consumer and delivers messages to handler.

@@ -16,6 +16,9 @@ type AppConfig struct {
 	InviteJWTSecret       string
 	SelfServeBaseURL      string
 	AllowedReturnURLHosts []string
+	// InvitesKVBucket is the name of the NATS JetStream KeyValue bucket used
+	// to store invite records. The bucket must already exist.
+	InvitesKVBucket string
 }
 
 // AppConfigFromEnv reads AppConfig from environment variables, applying defaults where needed.
@@ -44,6 +47,11 @@ func AppConfigFromEnv() AppConfig {
 
 	allowedHosts := parseAllowedReturnURLHosts(os.Getenv("ALLOWED_RETURN_URL_HOSTS"))
 
+	invitesKVBucket := os.Getenv("INVITES_KV_BUCKET")
+	if invitesKVBucket == "" {
+		invitesKVBucket = "invites"
+	}
+
 	return AppConfig{
 		NATSURL:               natsURL,
 		LogLevel:              os.Getenv("LOG_LEVEL"),
@@ -51,6 +59,7 @@ func AppConfigFromEnv() AppConfig {
 		InviteJWTSecret:       os.Getenv("INVITE_JWT_SECRET"),
 		SelfServeBaseURL:      selfServeBaseURL,
 		AllowedReturnURLHosts: allowedHosts,
+		InvitesKVBucket:       invitesKVBucket,
 	}
 }
 

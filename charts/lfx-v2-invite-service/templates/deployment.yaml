@@ -61,6 +61,8 @@ spec:
                   key: invite-jwt-secret
                   optional: false
             {{- end }}
+            - name: INVITES_KV_BUCKET
+              value: {{ .Values.nats.kv_bucket_invites.name | quote }}
             - name: LOG_LEVEL
               value: {{ .Values.app.logLevel }}
             {{- with .Values.app.extraEnv }}
