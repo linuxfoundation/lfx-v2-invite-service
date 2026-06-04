@@ -157,6 +157,7 @@ func (r *NATSInviteRepository) GetByEmail(ctx context.Context, email string) ([]
 // retries on revision mismatch. If the record does not exist, port.ErrInviteNotFound is
 // returned so the caller can distinguish "invite not tracked here" from a transient error.
 func (r *NATSInviteRepository) MarkAccepted(ctx context.Context, uid, username string, at time.Time) error {
+	lastErr := newServiceUnavailable("invite_repository: mark_accepted: retries exhausted", nil)
 	for attempt := range maxMarkAcceptedRetries {
 		entry, err := r.kv.Get(ctx, uid)
 		if err != nil {
@@ -200,10 +201,10 @@ func (r *NATSInviteRepository) MarkAccepted(ctx context.Context, uid, username s
 			continue
 		}
 
-		return newServiceUnavailable(fmt.Sprintf("invite_repository: update invite for mark_accepted (attempt %d)", attempt+1), updateErr)
+		lastErr = newServiceUnavailable(fmt.Sprintf("invite_repository: update invite for mark_accepted (attempt %d)", attempt+1), updateErr)
+		break
 	}
-	// All retries exhausted without a successful update.
-	return newServiceUnavailable("invite_repository: mark_accepted: retries exhausted", nil)
+	return lastErr
 }
 
 // Delete removes the primary invite record and its email secondary-index entry.

@@ -325,23 +325,24 @@ func TestNATSInviteRepository_MarkAccepted_RetryOnConcurrentWrite(t *testing.T) 
 	}
 
 	// Bump the revision once from outside concurrently with MarkAccepted.
-	// A sync.WaitGroup ensures the bump happens while MarkAccepted is in its loop.
+	// We use a channel to signal the goroutine immediately before calling
+	// MarkAccepted, making the revision bump as likely as possible to interleave
+	// with the Get/Update cycle. This is a best-effort stress test — guaranteed
+	// interleaving would require hooking the SUT.
+	ready := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	go func() {
 		defer wg.Done()
-		// Small sleep so MarkAccepted's first Get/Update cycle is likely in progress.
-		time.Sleep(5 * time.Millisecond)
-		// Write a no-op update to bump the revision and cause the first Update attempt
-		// in MarkAccepted to fail with a revision mismatch.
+		<-ready
 		existing, err := repo.GetByUID(ctx, "uid-race")
-		if err != nil {
-			return
+		if err == nil {
+			_ = repo.Create(ctx, existing) //nolint:errcheck // best-effort bump; key-exists error is fine
 		}
-		_ = repo.Create(ctx, existing) //nolint:errcheck // best-effort bump; key-exists error is fine
 	}()
 
+	close(ready)
 	err := repo.MarkAccepted(ctx, "uid-race", "alice-lfid", time.Now())
 	wg.Wait()
 
