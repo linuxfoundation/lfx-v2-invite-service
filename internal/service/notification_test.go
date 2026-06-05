@@ -153,18 +153,20 @@ func TestHandleSendInvite_NoInviter(t *testing.T) {
 	}
 }
 
-func TestHandleSendInvite_UnrecognisedRole_ReturnsError(t *testing.T) {
+func TestHandleSendInvite_CustomRole_Accepted(t *testing.T) {
 	email := &mocks.EmailSender{}
 	svc := newService(email)
 
 	req := baseInviteRequest()
-	req.Role = "superadmin"
-	_, err := svc.HandleSendInvite(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for unrecognised role, got nil")
+	req.Role = "Registrant"
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("expected nil error for custom role, got %v", err)
 	}
-	if len(email.Calls) != 0 {
-		t.Error("expected no email sent for unrecognised role")
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email for custom role, got %d", len(email.Calls))
+	}
+	if email.Calls[0].Role != "Registrant" {
+		t.Errorf("role: got %q, want %q", email.Calls[0].Role, "Registrant")
 	}
 }
 
