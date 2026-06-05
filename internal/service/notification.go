@@ -91,9 +91,6 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	canonicalEmail := addr.Address
 
 	role := model.Role(req.Role)
-	if role != model.RoleManage && role != model.RoleView && role != model.RoleMember {
-		return SendInviteResult{}, fmt.Errorf("%w: unrecognised role %q for resource %s", ErrInvalidRequest, req.Role, resourceUID)
-	}
 
 	// Validate the caller-supplied return_url against the allowlist before using it.
 	// The default fallback is always a known-good LFX URL, so only the caller value needs checking.
