@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>You've been invited to join {{.ResourceName}} {{.ResourceType}}</title>
+    <title>You've been invited to join {{.ResourceName}}{{if .ResourceType}} {{.ResourceType}}{{end}}</title>
     <style>
         body { margin: 0; padding: 0; background-color: #ffffff; font-family: Inter, Arial, sans-serif; color: #111827; }
         .wrapper { max-width: 600px; margin: 0 auto; padding: 32px 40px; }
@@ -38,16 +38,16 @@
     <p class="greeting">Hi {{.RecipientFirstName}},</p>
 
     {{if .HasInviter}}
-    <p><strong>{{.InviterFullName}}</strong> has invited you to join the <strong>{{.ResourceName}}</strong> {{.ResourceType}} on LFX with the <strong>{{.Role}}</strong> role.</p>
+    <p><strong>{{.InviterFullName}}</strong> has invited you to join the <strong>{{.ResourceName}}</strong>{{if .ResourceType}} {{.ResourceType}}{{end}} on LFX with the <strong>{{.Role}}</strong> role.</p>
     {{else}}
-    <p>You have been invited to join the <strong>{{.ResourceName}}</strong> {{.ResourceType}} on LFX with the <strong>{{.Role}}</strong> role.</p>
+    <p>You have been invited to join the <strong>{{.ResourceName}}</strong>{{if .ResourceType}} {{.ResourceType}}{{end}} on LFX with the <strong>{{.Role}}</strong> role.</p>
     {{end}}
-    <p>You&#39;ll need an LFX account to access the {{.ResourceType}}.</p>
+    <p>You&#39;ll need an LFX account to get started.</p>
     <p>Getting started takes about a minute:</p>
     <ol>
         <li>Click the button below to accept the invitation</li>
         <li>Create your LFX account (or sign in if you have a Linux Foundation ID)</li>
-        <li>You&#39;ll be taken straight to the <strong>{{.ResourceName}}</strong> {{.ResourceType}} dashboard</li>
+        <li>You&#39;ll be taken straight to the <strong>{{.ResourceName}}</strong>{{if .ResourceType}} {{.ResourceType}}{{end}} dashboard</li>
     </ol>
 
     <!-- djlint:off H021 --><a href="{{.ReturnURL}}" class="btn" style="color:#ffffff!important;">Accept invitation &amp; create account</a><!-- djlint:on H021 -->
