@@ -38,16 +38,16 @@
     <p class="greeting">Hi {{.RecipientFirstName}},</p>
 
     {{if .HasInviter}}
-    <p><strong>{{.InviterFullName}}</strong> has invited you to join the <strong>{{.ResourceName}} {{.ResourceType}}</strong> on LFX with the <strong>{{.Role}}</strong> role.</p>
+    <p><strong>{{.InviterFullName}}</strong> has invited you to join the <strong>{{.ResourceName}}</strong> {{.ResourceType}} on LFX with the <strong>{{.Role}}</strong> role.</p>
     {{else}}
-    <p>You have been invited to join the <strong>{{.ResourceName}} {{.ResourceType}}</strong> on LFX with the <strong>{{.Role}}</strong> role.</p>
+    <p>You have been invited to join the <strong>{{.ResourceName}}</strong> {{.ResourceType}} on LFX with the <strong>{{.Role}}</strong> role.</p>
     {{end}}
     <p>You&#39;ll need an LFX account to access the {{.ResourceType}}.</p>
     <p>Getting started takes about a minute:</p>
     <ol>
         <li>Click the button below to accept the invitation</li>
         <li>Create your LFX account (or sign in if you have a Linux Foundation ID)</li>
-        <li>You&#39;ll be taken straight to the <strong>{{.ResourceName}} {{.ResourceType}}</strong> dashboard</li>
+        <li>You&#39;ll be taken straight to the <strong>{{.ResourceName}}</strong> {{.ResourceType}} dashboard</li>
     </ol>
 
     <!-- djlint:off H021 --><a href="{{.ReturnURL}}" class="btn" style="color:#ffffff!important;">Accept invitation &amp; create account</a><!-- djlint:on H021 -->
