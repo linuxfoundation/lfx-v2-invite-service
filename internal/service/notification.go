@@ -90,6 +90,9 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	}
 	canonicalEmail := addr.Address
 
+	if strings.TrimSpace(req.Role) == "" {
+		return SendInviteResult{}, fmt.Errorf("%w: role must not be empty for resource %s", ErrInvalidRequest, resourceUID)
+	}
 	role := model.Role(req.Role)
 
 	// Validate the caller-supplied return_url against the allowlist before using it.
