@@ -88,10 +88,14 @@ func InviteEmailSubject(req *model.SendInviteRequest) string {
 	data := buildTemplateData(req)
 	var buf bytes.Buffer
 	if err := subjectTmpl.Execute(&buf, data); err != nil {
-		if inviterName := req.ResolvedInviterName(); inviterName != "" {
-			return sanitizeSingleLine(fmt.Sprintf("%s invited you to join %s", firstName(inviterName), req.ResolvedResourceName()))
+		resourceType := req.ResolvedResourceType()
+		if resourceType == "" {
+			resourceType = "resource"
 		}
-		return sanitizeSingleLine(fmt.Sprintf("You've been invited to join %s", req.ResolvedResourceName()))
+		if inviterName := req.ResolvedInviterName(); inviterName != "" {
+			return sanitizeSingleLine(fmt.Sprintf("%s invited you to join %s %s", firstName(inviterName), req.ResolvedResourceName(), resourceType))
+		}
+		return sanitizeSingleLine(fmt.Sprintf("You've been invited to join %s %s", req.ResolvedResourceName(), resourceType))
 	}
 	return sanitizeSingleLine(buf.String())
 }
@@ -101,7 +105,11 @@ func RenderInviteHTML(req *model.SendInviteRequest) string {
 	data := buildTemplateData(req)
 	var buf bytes.Buffer
 	if err := htmlTmpl.Execute(&buf, data); err != nil {
-		return fmt.Sprintf("<p>You have been invited to join %s.</p>", htmltmpl.HTMLEscapeString(req.ResolvedResourceName()))
+		resourceType := req.ResolvedResourceType()
+		if resourceType == "" {
+			resourceType = "resource"
+		}
+		return fmt.Sprintf("<p>You have been invited to join the %s %s.</p>", htmltmpl.HTMLEscapeString(req.ResolvedResourceName()), htmltmpl.HTMLEscapeString(resourceType))
 	}
 	return buf.String()
 }
@@ -111,7 +119,11 @@ func RenderInvitePlain(req *model.SendInviteRequest) string {
 	data := buildTemplateData(req)
 	var buf bytes.Buffer
 	if err := plainTmpl.Execute(&buf, data); err != nil {
-		return fmt.Sprintf("You have been invited to join %s.\n\n%s", req.ResolvedResourceName(), req.ReturnURL)
+		resourceType := req.ResolvedResourceType()
+		if resourceType == "" {
+			resourceType = "resource"
+		}
+		return fmt.Sprintf("You have been invited to join the %s %s.\n\n%s", req.ResolvedResourceName(), resourceType, req.ReturnURL)
 	}
 	return buf.String()
 }
