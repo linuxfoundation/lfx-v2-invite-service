@@ -153,6 +153,52 @@ func TestHandleSendInvite_NoInviter(t *testing.T) {
 	}
 }
 
+func TestHandleSendInvite_EmptyRole_ReturnsError(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		role string
+	}{
+		{"empty string", ""},
+		{"whitespace only", "   "},
+		{"tabs and newlines", "\t\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			email := &mocks.EmailSender{}
+			svc := newService(email)
+
+			req := baseInviteRequest()
+			req.Role = tc.role
+			_, err := svc.HandleSendInvite(context.Background(), req)
+			if err == nil {
+				t.Fatal("expected error for empty/whitespace role, got nil")
+			}
+			if !errors.Is(err, ErrInvalidRequest) {
+				t.Errorf("expected ErrInvalidRequest, got %v", err)
+			}
+			if len(email.Calls) != 0 {
+				t.Error("expected no email sent when role is empty or whitespace-only")
+			}
+		})
+	}
+}
+
+func TestHandleSendInvite_TrimmedRole_Normalized(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.Role = "Manage "
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("expected nil error for role with trailing whitespace, got %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email, got %d", len(email.Calls))
+	}
+	if email.Calls[0].Role != "Manage" {
+		t.Errorf("role: got %q, want trimmed %q", email.Calls[0].Role, "Manage")
+	}
+}
+
 func TestHandleSendInvite_CustomRole_Accepted(t *testing.T) {
 	email := &mocks.EmailSender{}
 	svc := newService(email)

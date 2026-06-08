@@ -82,48 +82,27 @@ func sanitizeSingleLine(s string) string {
 
 // InviteEmailSubject renders the email subject line for an invite request.
 func InviteEmailSubject(req *model.SendInviteRequest) string {
-	data := buildTemplateData(req)
 	var buf bytes.Buffer
-	if err := subjectTmpl.Execute(&buf, data); err != nil {
-		resourceType := req.ResolvedResourceType()
-		resourceSuffix := ""
-		if resourceType != "" {
-			resourceSuffix = " " + resourceType
-		}
-		if inviterName := req.ResolvedInviterName(); inviterName != "" {
-			return sanitizeSingleLine(fmt.Sprintf("%s invited you to join %s%s", firstName(inviterName), req.ResolvedResourceName(), resourceSuffix))
-		}
-		return sanitizeSingleLine(fmt.Sprintf("You've been invited to join %s%s", req.ResolvedResourceName(), resourceSuffix))
+	if err := subjectTmpl.Execute(&buf, buildTemplateData(req)); err != nil {
+		panic(fmt.Sprintf("invite subject template: %v", err))
 	}
 	return sanitizeSingleLine(buf.String())
 }
 
 // RenderInviteHTML renders the HTML body for an invite notification.
 func RenderInviteHTML(req *model.SendInviteRequest) string {
-	data := buildTemplateData(req)
 	var buf bytes.Buffer
-	if err := htmlTmpl.Execute(&buf, data); err != nil {
-		resourceType := req.ResolvedResourceType()
-		resourceSuffix := ""
-		if resourceType != "" {
-			resourceSuffix = " " + htmltmpl.HTMLEscapeString(resourceType)
-		}
-		return fmt.Sprintf("<p>You have been invited to join the %s%s.</p>", htmltmpl.HTMLEscapeString(req.ResolvedResourceName()), resourceSuffix)
+	if err := htmlTmpl.Execute(&buf, buildTemplateData(req)); err != nil {
+		panic(fmt.Sprintf("invite HTML template: %v", err))
 	}
 	return buf.String()
 }
 
 // RenderInvitePlain renders the plain-text body for an invite notification.
 func RenderInvitePlain(req *model.SendInviteRequest) string {
-	data := buildTemplateData(req)
 	var buf bytes.Buffer
-	if err := plainTmpl.Execute(&buf, data); err != nil {
-		resourceType := req.ResolvedResourceType()
-		resourceSuffix := ""
-		if resourceType != "" {
-			resourceSuffix = " " + resourceType
-		}
-		return fmt.Sprintf("You have been invited to join the %s%s.\n\n%s", req.ResolvedResourceName(), resourceSuffix, req.ReturnURL)
+	if err := plainTmpl.Execute(&buf, buildTemplateData(req)); err != nil {
+		panic(fmt.Sprintf("invite plain-text template: %v", err))
 	}
 	return buf.String()
 }
