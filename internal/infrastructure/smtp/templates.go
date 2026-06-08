@@ -80,29 +80,68 @@ func sanitizeSingleLine(s string) string {
 	return s
 }
 
+func sanitizedResourceSuffix(resourceType string) string {
+	if resourceType == "" {
+		return ""
+	}
+	return " " + sanitizeSingleLine(resourceType)
+}
+
+// fallbackInviteSubject returns a minimal subject when template execution fails.
+// Intentionally generic so it does not duplicate full template copy.
+func fallbackInviteSubject(data inviteEmailData) string {
+	suffix := sanitizedResourceSuffix(data.ResourceType)
+	name := sanitizeSingleLine(data.ResourceName)
+	if data.HasInviter {
+		return sanitizeSingleLine(fmt.Sprintf("%s invited you to join %s%s",
+			sanitizeSingleLine(data.InviterFirstName), name, suffix))
+	}
+	return sanitizeSingleLine(fmt.Sprintf("You've been invited to join %s%s", name, suffix))
+}
+
+// fallbackInviteHTML returns minimal, safely-escaped HTML when template execution fails.
+func fallbackInviteHTML(data inviteEmailData) string {
+	suffix := ""
+	if data.ResourceType != "" {
+		suffix = " " + htmltmpl.HTMLEscapeString(data.ResourceType)
+	}
+	return fmt.Sprintf("<p>You have been invited to join %s%s.</p>",
+		htmltmpl.HTMLEscapeString(data.ResourceName), suffix)
+}
+
+// fallbackInvitePlain returns minimal plain text when template execution fails.
+func fallbackInvitePlain(data inviteEmailData) string {
+	suffix := sanitizedResourceSuffix(data.ResourceType)
+	return fmt.Sprintf("You have been invited to join %s%s.\n\n%s",
+		sanitizeSingleLine(data.ResourceName), suffix, sanitizeSingleLine(data.ReturnURL))
+}
+
 // InviteEmailSubject renders the email subject line for an invite request.
 func InviteEmailSubject(req *model.SendInviteRequest) string {
+	data := buildTemplateData(req)
 	var buf bytes.Buffer
-	if err := subjectTmpl.Execute(&buf, buildTemplateData(req)); err != nil {
-		panic(fmt.Sprintf("invite subject template: %v", err))
+	if err := subjectTmpl.Execute(&buf, data); err != nil {
+		return fallbackInviteSubject(data)
 	}
 	return sanitizeSingleLine(buf.String())
 }
 
 // RenderInviteHTML renders the HTML body for an invite notification.
 func RenderInviteHTML(req *model.SendInviteRequest) string {
+	data := buildTemplateData(req)
 	var buf bytes.Buffer
-	if err := htmlTmpl.Execute(&buf, buildTemplateData(req)); err != nil {
-		panic(fmt.Sprintf("invite HTML template: %v", err))
+	if err := htmlTmpl.Execute(&buf, data); err != nil {
+		return fallbackInviteHTML(data)
 	}
 	return buf.String()
 }
 
 // RenderInvitePlain renders the plain-text body for an invite notification.
 func RenderInvitePlain(req *model.SendInviteRequest) string {
+	data := buildTemplateData(req)
 	var buf bytes.Buffer
-	if err := plainTmpl.Execute(&buf, buildTemplateData(req)); err != nil {
-		panic(fmt.Sprintf("invite plain-text template: %v", err))
+	if err := plainTmpl.Execute(&buf, data); err != nil {
+		return fallbackInvitePlain(data)
 	}
 	return buf.String()
 }
