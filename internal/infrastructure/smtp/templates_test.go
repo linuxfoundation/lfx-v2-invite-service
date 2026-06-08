@@ -215,3 +215,51 @@ func TestRenderInvitePlain_ContainsSteps(t *testing.T) {
 		t.Error("plain text missing numbered steps")
 	}
 }
+
+func TestFallbackInviteSubject_WithInviter(t *testing.T) {
+	subject := fallbackInviteSubject(inviteEmailData{
+		InviterFirstName: "Bob",
+		ResourceName:     "My Project",
+		ResourceType:     "meeting",
+		HasInviter:       true,
+	})
+	if !strings.Contains(subject, "Bob invited you to join My Project meeting") {
+		t.Errorf("unexpected fallback subject: %q", subject)
+	}
+}
+
+func TestFallbackInviteSubject_SanitizesResourceType(t *testing.T) {
+	subject := fallbackInviteSubject(inviteEmailData{
+		ResourceName: "My Project",
+		ResourceType: "meet\r\ning",
+	})
+	if strings.Contains(subject, "\r") || strings.Contains(subject, "\n") {
+		t.Errorf("fallback subject must sanitize resource type, got %q", subject)
+	}
+}
+
+func TestFallbackInviteHTML_EscapesResourceName(t *testing.T) {
+	out := fallbackInviteHTML(inviteEmailData{
+		ResourceName: "<script>alert('xss')</script>",
+		ResourceType: "meeting",
+	})
+	if strings.Contains(out, "<script>") {
+		t.Error("fallback HTML must escape resource name")
+	}
+	if !strings.Contains(out, "meeting") {
+		t.Errorf("fallback HTML missing resource type, got %q", out)
+	}
+}
+
+func TestFallbackInvitePlain_SanitizesReturnURL(t *testing.T) {
+	out := fallbackInvitePlain(inviteEmailData{
+		ResourceName: "My Project",
+		ReturnURL:    "https://lfx.example.com/invite\nInjected: header",
+	})
+	if strings.Contains(out, "\nInjected") {
+		t.Errorf("fallback plain text must sanitize return URL, got %q", out)
+	}
+	if !strings.Contains(out, "https://lfx.example.com/invite") {
+		t.Errorf("fallback plain text missing return URL, got %q", out)
+	}
+}

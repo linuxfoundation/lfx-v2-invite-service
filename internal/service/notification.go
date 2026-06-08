@@ -90,10 +90,11 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	}
 	canonicalEmail := addr.Address
 
-	role := model.Role(req.Role)
-	if role != model.RoleManage && role != model.RoleView && role != model.RoleMember {
-		return SendInviteResult{}, fmt.Errorf("%w: unrecognised role %q for resource %s", ErrInvalidRequest, req.Role, resourceUID)
+	roleStr := strings.TrimSpace(req.Role)
+	if roleStr == "" {
+		return SendInviteResult{}, fmt.Errorf("%w: role must not be empty for resource %s", ErrInvalidRequest, resourceUID)
 	}
+	role := model.Role(roleStr)
 
 	// Validate the caller-supplied return_url against the allowlist before using it.
 	// The default fallback is always a known-good LFX URL, so only the caller value needs checking.
@@ -114,7 +115,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	// Generate a signed JWT invite link wrapping the destination URL.
 	// Fail closed: JWT signing failure is a hard error — silently falling back to a
 	// plain URL would deliver an LFX-branded email pointing to an unsigned, unrevokable link.
-	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(canonicalEmail, destURL, resourceUID, req.Role, req.ExpirationDays)
+	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(canonicalEmail, destURL, resourceUID, roleStr, req.ExpirationDays)
 	if linkErr != nil {
 		return SendInviteResult{}, fmt.Errorf("generate invite link for resource %s: %w", resourceUID, linkErr)
 	}
@@ -125,6 +126,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	// intentional: we are populating the deprecated scalars for backward-compat with
 	// infrastructure adapters (email_sender, smtp templates) that still read them.
 	reqCopy := *req
+	reqCopy.Role = roleStr
 	reqCopy.RecipientEmail = canonicalEmail             //nolint:staticcheck
 	reqCopy.RecipientName = req.ResolvedRecipientName() //nolint:staticcheck
 	reqCopy.InviterName = req.ResolvedInviterName()     //nolint:staticcheck
