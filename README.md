@@ -295,64 +295,88 @@ go get github.com/linuxfoundation/lfx-v2-invite-service/pkg/api
 package main
 
 import (
- "context"
- "encoding/json"
- "fmt"
- "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
 
- "github.com/nats-io/nats.go"
- inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
+	"github.com/nats-io/nats.go"
+	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
 func main() {
- nc, _ := nats.Connect(nats.DefaultURL)
- defer nc.Close()
+	nc, err := nats.Connect(nats.DefaultURL)
+	if err != nil {
+		panic(err)
+	}
+	defer nc.Close()
 
- ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
- defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
- // Send an invite.
- req := inviteapi.SendInviteRequest{
-  Recipient: &inviteapi.Recipient{Name: "Alice Smith", Email: "alice@example.com"},
-  Inviter:   &inviteapi.Inviter{Name: "Bob Jones", Username: "bobjones"},
-  Resource:  &inviteapi.Resource{UID: "proj-abc123", Name: "My Project", Type: "project"},
-  Role:      string(inviteapi.InviteRoleMember),
-  OrgName:   "The Linux Foundation",
- }
- data, _ := json.Marshal(req)
+	// Send an invite.
+	req := inviteapi.SendInviteRequest{
+		Recipient: &inviteapi.Recipient{Name: "Alice Smith", Email: "alice@example.com"},
+		Inviter:   &inviteapi.Inviter{Name: "Bob Jones", Username: "bobjones"},
+		Resource:  &inviteapi.Resource{UID: "proj-abc123", Name: "My Project", Type: "project"},
+		Role:      string(inviteapi.InviteRoleMember),
+		OrgName:   "The Linux Foundation",
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		panic(err)
+	}
 
- reply, err := nc.RequestWithContext(ctx, inviteapi.SendInviteSubject, data)
- if err != nil {
-  panic(err)
- }
+	reply, err := nc.RequestWithContext(ctx, inviteapi.SendInviteSubject, data)
+	if err != nil {
+		panic(err)
+	}
 
- var sendResp inviteapi.SendInviteResponse
- _ = json.Unmarshal(reply.Data, &sendResp)
- if sendResp.Error != "" {
-  fmt.Println("send failed:", sendResp.Error)
-  return
- }
- fmt.Println("invite sent, uid:", sendResp.UID)
+	var sendResp inviteapi.SendInviteResponse
+	if err := json.Unmarshal(reply.Data, &sendResp); err != nil {
+		panic(err)
+	}
+	if sendResp.Error != "" {
+		fmt.Println("send failed:", sendResp.Error)
+		return
+	}
+	fmt.Println("invite sent, uid:", sendResp.UID)
 
- // Look up the invite record by UID.
- getReq, _ := json.Marshal(inviteapi.GetInviteRequest{UID: sendResp.UID})
- getReply, _ := nc.RequestWithContext(ctx, inviteapi.GetInviteSubject, getReq)
+	// Look up the invite record by UID.
+	getReq, err := json.Marshal(inviteapi.GetInviteRequest{UID: sendResp.UID})
+	if err != nil {
+		panic(err)
+	}
+	getReply, err := nc.RequestWithContext(ctx, inviteapi.GetInviteSubject, getReq)
+	if err != nil {
+		panic(err)
+	}
 
- var getResp inviteapi.GetInviteResponse
- _ = json.Unmarshal(getReply.Data, &getResp)
- if getResp.Error != "" {
-  fmt.Println("get failed:", getResp.Error)
-  return
- }
- fmt.Printf("status: %s, expires: %s\n", getResp.Invite.Status, getResp.Invite.ExpiresAt)
+	var getResp inviteapi.GetInviteResponse
+	if err := json.Unmarshal(getReply.Data, &getResp); err != nil {
+		panic(err)
+	}
+	if getResp.Error != "" {
+		fmt.Println("get failed:", getResp.Error)
+		return
+	}
+	fmt.Printf("status: %s, expires: %s\n", getResp.Invite.Status, getResp.Invite.ExpiresAt)
 
- // List all invites for an email address.
- listReq, _ := json.Marshal(inviteapi.GetInvitesByEmailRequest{Email: "alice@example.com"})
- listReply, _ := nc.RequestWithContext(ctx, inviteapi.GetInvitesByEmailSubject, listReq)
+	// List all invites for an email address.
+	listReq, err := json.Marshal(inviteapi.GetInvitesByEmailRequest{Email: "alice@example.com"})
+	if err != nil {
+		panic(err)
+	}
+	listReply, err := nc.RequestWithContext(ctx, inviteapi.GetInvitesByEmailSubject, listReq)
+	if err != nil {
+		panic(err)
+	}
 
- var invites []inviteapi.Invite
- _ = json.Unmarshal(listReply.Data, &invites)
- fmt.Printf("invites for alice: %d\n", len(invites))
+	var invites []inviteapi.Invite
+	if err := json.Unmarshal(listReply.Data, &invites); err != nil {
+		panic(err)
+	}
+	fmt.Printf("invites for alice: %d\n", len(invites))
 }
 ```
 
