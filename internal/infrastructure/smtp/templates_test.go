@@ -12,14 +12,12 @@ import (
 
 func baseRequest() *model.SendInviteRequest {
 	return &model.SendInviteRequest{
-		RecipientName:  "Alice Smith",
-		RecipientEmail: "alice@example.com",
-		InviterName:    "Bob Jones",
-		ResourceUID:    "res-123",
-		ResourceName:   "My Project",
-		Role:           string(model.RoleManage),
-		ReturnURL:      "https://lfx.example.com/resources/res-123",
-		OrgName:        "Linux Foundation",
+		Recipient: &model.Recipient{Name: "Alice Smith", Email: "alice@example.com"},
+		Inviter:   &model.Inviter{Name: "Bob Jones"},
+		Resource:  &model.InviteResource{UID: "res-123", Name: "My Project"},
+		Role:      string(model.RoleManage),
+		ReturnURL: "https://lfx.example.com/resources/res-123",
+		OrgName:   "Linux Foundation",
 	}
 }
 
@@ -31,19 +29,19 @@ func TestInviteEmailSubject_WithInviter(t *testing.T) {
 	if !strings.Contains(subject, "Bob") {
 		t.Errorf("subject missing inviter first name, got %q", subject)
 	}
-	if !strings.Contains(subject, req.ResourceName) {
+	if !strings.Contains(subject, req.ResolvedResourceName()) {
 		t.Errorf("subject missing resource name, got %q", subject)
 	}
 }
 
 func TestInviteEmailSubject_WithoutInviter(t *testing.T) {
 	req := baseRequest()
-	req.InviterName = ""
+	req.Inviter = nil
 	subject := InviteEmailSubject(req)
 	if strings.Contains(subject, "Bob") {
 		t.Errorf("subject should not contain inviter name when absent, got %q", subject)
 	}
-	if !strings.Contains(subject, req.ResourceName) {
+	if !strings.Contains(subject, req.ResolvedResourceName()) {
 		t.Errorf("subject missing resource name, got %q", subject)
 	}
 }
@@ -80,8 +78,8 @@ func TestRenderInviteHTML_ContainsInviterFullName(t *testing.T) {
 func TestRenderInviteHTML_ContainsResourceName(t *testing.T) {
 	req := baseRequest()
 	out := RenderInviteHTML(req)
-	if !strings.Contains(out, req.ResourceName) {
-		t.Errorf("HTML missing resource name %q", req.ResourceName)
+	if !strings.Contains(out, req.ResolvedResourceName()) {
+		t.Errorf("HTML missing resource name %q", req.ResolvedResourceName())
 	}
 }
 
@@ -112,7 +110,7 @@ func TestRenderInviteHTML_DefaultsOrgNameToLFX(t *testing.T) {
 
 func TestRenderInviteHTML_WithoutInviter(t *testing.T) {
 	req := baseRequest()
-	req.InviterName = ""
+	req.Inviter = nil
 	out := RenderInviteHTML(req)
 	if strings.Contains(out, "Bob") {
 		t.Error("HTML should not contain inviter name when absent")
@@ -132,7 +130,7 @@ func TestRenderInviteHTML_ContainsCTA(t *testing.T) {
 
 func TestRenderInviteHTML_EscapesSpecialCharacters(t *testing.T) {
 	req := baseRequest()
-	req.ResourceName = "<script>alert('xss')</script>"
+	req.Resource = &model.InviteResource{UID: "res-123", Name: "<script>alert('xss')</script>"}
 	out := RenderInviteHTML(req)
 	if strings.Contains(out, "<script>") {
 		t.Error("HTML must escape resource name containing script tags")
@@ -160,8 +158,8 @@ func TestRenderInvitePlain_ContainsInviterFullName(t *testing.T) {
 func TestRenderInvitePlain_ContainsResourceName(t *testing.T) {
 	req := baseRequest()
 	out := RenderInvitePlain(req)
-	if !strings.Contains(out, req.ResourceName) {
-		t.Errorf("plain text missing resource name %q", req.ResourceName)
+	if !strings.Contains(out, req.ResolvedResourceName()) {
+		t.Errorf("plain text missing resource name %q", req.ResolvedResourceName())
 	}
 }
 
@@ -183,7 +181,7 @@ func TestRenderInvitePlain_ContainsRole(t *testing.T) {
 
 func TestRenderInvitePlain_WithoutInviter(t *testing.T) {
 	req := baseRequest()
-	req.InviterName = ""
+	req.Inviter = nil
 	out := RenderInvitePlain(req)
 	if strings.Contains(out, "Bob") {
 		t.Error("plain text should not contain inviter name when absent")
@@ -215,5 +213,53 @@ func TestRenderInvitePlain_ContainsSteps(t *testing.T) {
 	out := RenderInvitePlain(req)
 	if !strings.Contains(out, "1.") || !strings.Contains(out, "2.") || !strings.Contains(out, "3.") {
 		t.Error("plain text missing numbered steps")
+	}
+}
+
+func TestFallbackInviteSubject_WithInviter(t *testing.T) {
+	subject := fallbackInviteSubject(inviteEmailData{
+		InviterFirstName: "Bob",
+		ResourceName:     "My Project",
+		ResourceType:     "meeting",
+		HasInviter:       true,
+	})
+	if !strings.Contains(subject, "Bob invited you to join My Project meeting") {
+		t.Errorf("unexpected fallback subject: %q", subject)
+	}
+}
+
+func TestFallbackInviteSubject_SanitizesResourceType(t *testing.T) {
+	subject := fallbackInviteSubject(inviteEmailData{
+		ResourceName: "My Project",
+		ResourceType: "meet\r\ning",
+	})
+	if strings.Contains(subject, "\r") || strings.Contains(subject, "\n") {
+		t.Errorf("fallback subject must sanitize resource type, got %q", subject)
+	}
+}
+
+func TestFallbackInviteHTML_EscapesResourceName(t *testing.T) {
+	out := fallbackInviteHTML(inviteEmailData{
+		ResourceName: "<script>alert('xss')</script>",
+		ResourceType: "meeting",
+	})
+	if strings.Contains(out, "<script>") {
+		t.Error("fallback HTML must escape resource name")
+	}
+	if !strings.Contains(out, "meeting") {
+		t.Errorf("fallback HTML missing resource type, got %q", out)
+	}
+}
+
+func TestFallbackInvitePlain_SanitizesReturnURL(t *testing.T) {
+	out := fallbackInvitePlain(inviteEmailData{
+		ResourceName: "My Project",
+		ReturnURL:    "https://lfx.example.com/invite\nInjected: header",
+	})
+	if strings.Contains(out, "\nInjected") {
+		t.Errorf("fallback plain text must sanitize return URL, got %q", out)
+	}
+	if !strings.Contains(out, "https://lfx.example.com/invite") {
+		t.Errorf("fallback plain text missing return URL, got %q", out)
 	}
 }
