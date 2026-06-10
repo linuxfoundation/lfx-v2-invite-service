@@ -35,7 +35,7 @@ persists a `pending` invite record in KV.
 | `resource.uid` | string | yes | Resource UID |
 | `resource.name` | string | no | Resource display name, used in the email body |
 | `resource.type` | string | no | Resource kind — e.g. `"project"`, `"committee"`, `"meeting"`. Defaults to `"resource"` when empty |
-| `role` | string | yes | Access level: `"Manage"`, `"View"`, or `"Member"` |
+| `role` | string | yes | Access level (e.g. `"Manage"`, `"View"`, `"Member"`); any non-empty string is accepted |
 | `return_url` | string | no | URL the invite link redirects to after acceptance. Must use `https` and match the `ALLOWED_RETURN_URL_HOSTS` allowlist. Defaults to `DEFAULT_INVITE_LINK_RETURN_URL` when omitted |
 | `org_name` | string | no | Foundation or project name used in the email signature ("The X Team"). Defaults to `"LFX"` when empty |
 | `expiration_days` | int | no | Number of days before the invite JWT expires. Defaults to 30, capped at 90 |
@@ -89,7 +89,7 @@ Store `uid` to look up the invite record later or to correlate with the
 | `error` value | Cause |
 |---|---|
 | `malformed_request` | Request body is not valid JSON |
-| `invalid_request` | Missing required field, unrecognised role, or `return_url` failed host validation |
+| `invalid_request` | Missing required field or `return_url` failed host validation |
 | `email_dispatch_failed` | Invite link was generated but the email service could not deliver it |
 | `internal_error` | Unexpected server-side failure |
 
