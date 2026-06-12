@@ -35,7 +35,7 @@ persists a `pending` invite record in KV.
 | `resource.uid` | string | yes | Resource UID |
 | `resource.name` | string | no | Resource display name, used in the email body |
 | `resource.type` | string | no | Resource kind — e.g. `"project"`, `"committee"`, `"meeting"`. Defaults to `"resource"` when empty |
-| `role` | string | yes | Access level: `"Manage"`, `"View"`, or `"Member"` |
+| `role` | string | yes | Access level (e.g. `"Manage"`, `"View"`, `"Member"`); any non-empty string is accepted |
 | `return_url` | string | no | URL the invite link redirects to after acceptance. Must use `https` and match the `ALLOWED_RETURN_URL_HOSTS` allowlist. Defaults to `DEFAULT_INVITE_LINK_RETURN_URL` when omitted |
 | `org_name` | string | no | Foundation or project name used in the email signature ("The X Team"). Defaults to `"LFX"` when empty |
 | `expiration_days` | int | no | Number of days before the invite JWT expires. Defaults to 30, capped at 90 |
@@ -68,6 +68,7 @@ persists a `pending` invite record in KV.
 ```
 
 **Success response:**
+
 ```json
 {
   "uid": "550e8400-e29b-41d4-a716-446655440000",
@@ -80,6 +81,7 @@ Store `uid` to look up the invite record later or to correlate with the
 `lfx.invite.accepted` event.
 
 **Error response:**
+
 ```json
 { "error": "<reason>" }
 ```
@@ -87,11 +89,12 @@ Store `uid` to look up the invite record later or to correlate with the
 | `error` value | Cause |
 |---|---|
 | `malformed_request` | Request body is not valid JSON |
-| `invalid_request` | Missing required field, unrecognised role, or `return_url` failed host validation |
+| `invalid_request` | Missing required field, invalid `recipient` email, or `return_url` failed validation (must use `https` and match `ALLOWED_RETURN_URL_HOSTS`) |
 | `email_dispatch_failed` | Invite link was generated but the email service could not deliver it |
 | `internal_error` | Unexpected server-side failure |
 
 **Examples (NATS CLI):**
+
 ```bash
 # Structured objects (preferred)
 nats req lfx.invite-service.send_invite \
@@ -112,11 +115,13 @@ nats req lfx.invite-service.send_invite \
 Returns the full invite record for a given invite UID.
 
 **Request:**
+
 ```json
 { "uid": "550e8400-e29b-41d4-a716-446655440000" }
 ```
 
 **Success response:**
+
 ```json
 {
   "uid": "550e8400-e29b-41d4-a716-446655440000",
@@ -163,6 +168,7 @@ includes `accepted_at` and `accepted_by`:
 ```
 
 **Error response:**
+
 ```json
 { "error": "<reason>" }
 ```
@@ -175,6 +181,7 @@ includes `accepted_at` and `accepted_by`:
 | `internal_error` | Unexpected server-side failure |
 
 **Example (NATS CLI):**
+
 ```bash
 nats req lfx.invite-service.get_invite \
   '{"uid":"550e8400-e29b-41d4-a716-446655440000"}'
@@ -192,11 +199,13 @@ statuses. Useful for checking whether a user already has a pending invite before
 sending another.
 
 **Request:**
+
 ```json
 { "email": "alice@example.com" }
 ```
 
 **Success response** — a bare JSON array of invite records (empty array when none exist):
+
 ```json
 [
   {
@@ -224,6 +233,7 @@ sending another.
 ```
 
 **Error response:**
+
 ```json
 { "error": "<reason>" }
 ```
@@ -235,6 +245,7 @@ sending another.
 | `internal_error` | Unexpected server-side failure |
 
 **Example (NATS CLI):**
+
 ```bash
 nats req lfx.invite-service.get_invites_by_email \
   '{"email":"alice@example.com"}'
@@ -258,6 +269,7 @@ If the `invite_uid` is not found in the invite-service KV store (i.e. the invite
 belongs to a different service's flow), the event is silently ignored.
 
 **Event payload:**
+
 ```json
 {
   "invite_uid": "550e8400-e29b-41d4-a716-446655440000",
@@ -267,6 +279,41 @@ belongs to a different service's flow), the event is silently ignored.
 
 This subject is consumed, not exposed for direct use — it is published by
 the self-serve web app.
+
+---
+
+### Invite accepted event (published)
+
+**Subject:** `lfx.invite-service.invite_accepted`
+
+Published by the invite service after it marks a KV record accepted in response
+to `lfx.invite.accepted`. Carries the full invite record (recipient, inviter,
+resource, role, timestamps) so downstream services can react without a separate
+`get_invite` lookup.
+
+Delivery is best-effort over core NATS — a publish failure is logged but does
+not roll back the KV update or block the acceptance flow.
+
+**Event payload** (same shape as a successful `get_invite` response for an
+accepted invite):
+
+```json
+{
+  "uid": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "accepted",
+  "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
+  "inviter": { "name": "Bob Jones", "username": "bobjones" },
+  "resource": { "uid": "proj-abc123", "name": "My Project", "type": "project" },
+  "role": "Member",
+  "created_at": "2025-01-15T10:30:00Z",
+  "expires_at": "2025-02-14T10:30:00Z",
+  "accepted_at": "2025-01-20T14:05:00Z",
+  "accepted_by": "alice-lfid"
+}
+```
+
+Duplicate or redelivered `lfx.invite.accepted` events for an already-accepted
+invite are ignored and do not emit a second enriched event.
 
 ---
 
@@ -293,7 +340,10 @@ import (
 )
 
 func main() {
-	nc, _ := nats.Connect(nats.DefaultURL)
+	nc, err := nats.Connect(nats.DefaultURL)
+	if err != nil {
+		panic(err)
+	}
 	defer nc.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -307,7 +357,10 @@ func main() {
 		Role:      string(inviteapi.InviteRoleMember),
 		OrgName:   "The Linux Foundation",
 	}
-	data, _ := json.Marshal(req)
+	data, err := json.Marshal(req)
+	if err != nil {
+		panic(err)
+	}
 
 	reply, err := nc.RequestWithContext(ctx, inviteapi.SendInviteSubject, data)
 	if err != nil {
@@ -315,7 +368,9 @@ func main() {
 	}
 
 	var sendResp inviteapi.SendInviteResponse
-	_ = json.Unmarshal(reply.Data, &sendResp)
+	if err := json.Unmarshal(reply.Data, &sendResp); err != nil {
+		panic(err)
+	}
 	if sendResp.Error != "" {
 		fmt.Println("send failed:", sendResp.Error)
 		return
@@ -323,11 +378,19 @@ func main() {
 	fmt.Println("invite sent, uid:", sendResp.UID)
 
 	// Look up the invite record by UID.
-	getReq, _ := json.Marshal(inviteapi.GetInviteRequest{UID: sendResp.UID})
-	getReply, _ := nc.RequestWithContext(ctx, inviteapi.GetInviteSubject, getReq)
+	getReq, err := json.Marshal(inviteapi.GetInviteRequest{UID: sendResp.UID})
+	if err != nil {
+		panic(err)
+	}
+	getReply, err := nc.RequestWithContext(ctx, inviteapi.GetInviteSubject, getReq)
+	if err != nil {
+		panic(err)
+	}
 
 	var getResp inviteapi.GetInviteResponse
-	_ = json.Unmarshal(getReply.Data, &getResp)
+	if err := json.Unmarshal(getReply.Data, &getResp); err != nil {
+		panic(err)
+	}
 	if getResp.Error != "" {
 		fmt.Println("get failed:", getResp.Error)
 		return
@@ -335,11 +398,19 @@ func main() {
 	fmt.Printf("status: %s, expires: %s\n", getResp.Invite.Status, getResp.Invite.ExpiresAt)
 
 	// List all invites for an email address.
-	listReq, _ := json.Marshal(inviteapi.GetInvitesByEmailRequest{Email: "alice@example.com"})
-	listReply, _ := nc.RequestWithContext(ctx, inviteapi.GetInvitesByEmailSubject, listReq)
+	listReq, err := json.Marshal(inviteapi.GetInvitesByEmailRequest{Email: "alice@example.com"})
+	if err != nil {
+		panic(err)
+	}
+	listReply, err := nc.RequestWithContext(ctx, inviteapi.GetInvitesByEmailSubject, listReq)
+	if err != nil {
+		panic(err)
+	}
 
 	var invites []inviteapi.Invite
-	_ = json.Unmarshal(listReply.Data, &invites)
+	if err := json.Unmarshal(listReply.Data, &invites); err != nil {
+		panic(err)
+	}
 	fmt.Printf("invites for alice: %d\n", len(invites))
 }
 ```
@@ -373,8 +444,8 @@ nats kv add invites --history=20 --storage=file
 │       └── templates/
 │           └── nats-kv-buckets.yaml # Declares the invites KV bucket via nack CRD
 ├── cmd/
-│   └── invite-api/                  # Application entry point
-│       ├── main.go
+│   └── invite-api/
+│       ├── main.go                      # OTel bootstrap, signal handling, graceful shutdown
 │       └── service/
 │           ├── config.go            # AppConfig read from env vars
 │           ├── implementations.go   # Infrastructure wiring (NATS, KV, services)
@@ -384,6 +455,7 @@ nats kv add invites --history=20 --storage=file
 │   │   ├── model/                   # Domain types: InviteRecord, SendInviteRequest, roles
 │   │   └── port/                    # Interfaces: EmailSender, InviteStore; mocks/
 │   ├── infrastructure/
+│   │   ├── auth/                    # JWT link generator (HS256)
 │   │   ├── nats/                    # NATS client, NATSEmailSender, NATSInviteRepository
 │   │   ├── observability/           # slog setup and OTel SDK bootstrap
 │   │   └── smtp/                    # Template rendering + embedded templates/
@@ -395,12 +467,13 @@ nats kv add invites --history=20 --storage=file
     └── api/                         # Public inter-service contract: subjects, types
 ```
 
-## Key Design Decisions
+## Architecture Notes
 
 - **No HTTP API** — the service is a pure NATS subscriber. All operations use request/reply or fire-and-forget events.
 - **Template ownership** — the invite service owns and renders the email template; the email service (`lfx.email-service.send_email`) handles SMTP delivery. Callers publish structured fields — no pre-rendered HTML required.
 - **Fail-closed KV persist** — the invite record is written to KV *before* the email is sent. A KV write failure aborts the operation and no email is dispatched. If the email send fails after a successful KV write, a best-effort rollback delete is attempted and `email_dispatch_failed` is returned to the caller.
 - **Own queue group for acceptance** — the service uses `invite-service-acceptance` as its queue group for `lfx.invite.accepted`, so it receives an independent copy alongside other subscribers (e.g. project-service).
+- **Enriched acceptance broadcast** — after updating KV, the service publishes `lfx.invite-service.invite_accepted` with the full invite record for downstream subscribers.
 - **Config injected via struct** — all env vars are read in `cmd/invite-api/service/config.go` and passed into service constructors; no `os.Getenv` calls in business logic.
 
 ## Environment Variables
@@ -417,6 +490,28 @@ nats kv add invites --history=20 --storage=file
 | `LOG_LEVEL` | `debug` | Log level: `debug`, `info`, `warn`, `error` |
 | `OTEL_SERVICE_NAME` | `lfx-v2-invite-service` | OpenTelemetry service name |
 
+## Quick Start
+
+### Option 1 — Run directly
+
+```bash
+# Prerequisites: Go 1.25+, NATS with JetStream (docker run -d -p 4222:4222 nats:latest -js)
+make build
+nats kv add invites --history=20 --storage=file
+
+NATS_URL=nats://localhost:4222 \
+INVITE_JWT_SECRET=$(openssl rand -base64 48) \
+./bin/invite-api
+```
+
+### Option 2 — Deploy to a local cluster with Helm
+
+```bash
+cp charts/lfx-v2-invite-service/values.local.yaml.example charts/lfx-v2-invite-service/values.local.yaml
+# Edit values.local.yaml to set the NATS URL and JWT secret
+make helm-install-local
+```
+
 ## Development
 
 ### Prerequisites
@@ -424,12 +519,17 @@ nats kv add invites --history=20 --storage=file
 - Go 1.25+
 - NATS server with JetStream enabled (Docker: `docker run -d -p 4222:4222 nats:latest -js`)
 
-### Build
+### Make targets
 
-```bash
-make build
-# binary: bin/lfx-v2-invite-service/invite-service
-```
+| Target | Description |
+| ------ | ----------- |
+| `make build` | Compile binary → `bin/invite-api` |
+| `make run` | Build and run `./bin/invite-api` |
+| `make test` | Run tests with race detector |
+| `make check` | fmt + lint + license-check + go vet |
+| `make lint` | golangci-lint only |
+| `make helm-templates` | Render the Helm chart with default values (dry-run) |
+| `make helm-install-local` | Install/upgrade the chart into the current kube context |
 
 ### Create the Kubernetes secret
 
@@ -448,17 +548,6 @@ kubectl create secret generic lfx-v2-invite-service \
 > `/cloudops/managed-secrets/cloud/invite-service/jwt`. For local Kubernetes
 > (e.g. OrbStack) the manual `kubectl create secret` above is sufficient.
 
-### Run locally
-
-```bash
-# Create the KV bucket first
-nats kv add invites --history=20 --storage=file
-
-export NATS_URL=nats://localhost:4222
-export INVITE_JWT_SECRET=$(openssl rand -base64 48)
-./bin/lfx-v2-invite-service/invite-service
-```
-
 ### Test
 
 ```bash
@@ -471,10 +560,25 @@ make test
 make check
 ```
 
+## Adding a New NATS Subscription
+
+1. Add the handler method to the appropriate service in `internal/service/`.
+2. Add a queue-subscribe block in `cmd/invite-api/service/subscriptions.go` and append the stop func.
+3. Add subject constant + payload types to `pkg/api/invite.go`.
+4. Wire any new infrastructure (e.g. a KV binding) in `cmd/invite-api/service/implementations.go`.
+
 ## Releases
 
 1. Merge the PR, then create a GitHub release with a `v{version}` tag.
 2. CI builds and publishes the container image and Helm chart automatically.
+
+## Related Services
+
+| Service | Relationship |
+| ------- | ------------ |
+| `lfx-v2-email-service` | Handles SMTP delivery; this service forwards pre-rendered emails to it |
+| `lfx-v2-project-service` | Example resource service that publishes `send_invite` requests |
+| `lfx-v2-committee-service` | Example resource service that publishes `send_invite` requests |
 
 ## License
 
