@@ -89,7 +89,7 @@ Store `uid` to look up the invite record later or to correlate with the
 | `error` value | Cause |
 |---|---|
 | `malformed_request` | Request body is not valid JSON |
-| `invalid_request` | Missing required field or `return_url` failed host validation |
+| `invalid_request` | Missing required field, invalid `recipient` email, or `return_url` failed validation (must use `https` and match `ALLOWED_RETURN_URL_HOSTS`) |
 | `email_dispatch_failed` | Invite link was generated but the email service could not deliver it |
 | `internal_error` | Unexpected server-side failure |
 
@@ -282,6 +282,41 @@ the self-serve web app.
 
 ---
 
+### Invite accepted event (published)
+
+**Subject:** `lfx.invite-service.invite_accepted`
+
+Published by the invite service after it marks a KV record accepted in response
+to `lfx.invite.accepted`. Carries the full invite record (recipient, inviter,
+resource, role, timestamps) so downstream services can react without a separate
+`get_invite` lookup.
+
+Delivery is best-effort over core NATS — a publish failure is logged but does
+not roll back the KV update or block the acceptance flow.
+
+**Event payload** (same shape as a successful `get_invite` response for an
+accepted invite):
+
+```json
+{
+  "uid": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "accepted",
+  "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
+  "inviter": { "name": "Bob Jones", "username": "bobjones" },
+  "resource": { "uid": "proj-abc123", "name": "My Project", "type": "project" },
+  "role": "Member",
+  "created_at": "2025-01-15T10:30:00Z",
+  "expires_at": "2025-02-14T10:30:00Z",
+  "accepted_at": "2025-01-20T14:05:00Z",
+  "accepted_by": "alice-lfid"
+}
+```
+
+Duplicate or redelivered `lfx.invite.accepted` events for an already-accepted
+invite are ignored and do not emit a second enriched event.
+
+---
+
 ### Use with Go
 
 The `pkg/api` package exports subject constants and request/response types for
@@ -438,6 +473,7 @@ nats kv add invites --history=20 --storage=file
 - **Template ownership** — the invite service owns and renders the email template; the email service (`lfx.email-service.send_email`) handles SMTP delivery. Callers publish structured fields — no pre-rendered HTML required.
 - **Fail-closed KV persist** — the invite record is written to KV *before* the email is sent. A KV write failure aborts the operation and no email is dispatched. If the email send fails after a successful KV write, a best-effort rollback delete is attempted and `email_dispatch_failed` is returned to the caller.
 - **Own queue group for acceptance** — the service uses `invite-service-acceptance` as its queue group for `lfx.invite.accepted`, so it receives an independent copy alongside other subscribers (e.g. project-service).
+- **Enriched acceptance broadcast** — after updating KV, the service publishes `lfx.invite-service.invite_accepted` with the full invite record for downstream subscribers.
 - **Config injected via struct** — all env vars are read in `cmd/invite-api/service/config.go` and passed into service constructors; no `os.Getenv` calls in business logic.
 
 ## Environment Variables
