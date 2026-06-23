@@ -99,7 +99,7 @@ func (s *AcceptanceService) publishAccepted(ctx context.Context, inviteUID strin
 		return
 	}
 
-	if err := s.publisher.Publish(api.InviteServiceAcceptedSubject, data); err != nil {
+	if err := s.publisher.Publish(ctx, api.InviteServiceAcceptedSubject, data); err != nil {
 		slog.WarnContext(ctx, "acceptance: failed to publish enriched invite_accepted event — skipping",
 			"invite_uid", inviteUID,
 			"error", err,
