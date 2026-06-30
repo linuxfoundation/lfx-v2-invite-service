@@ -64,6 +64,7 @@ func (c *Client) Request(ctx context.Context, subject string, data []byte) ([]by
 		trace.WithAttributes(
 			attribute.String("messaging.system", "nats"),
 			attribute.String("messaging.destination.name", subject),
+			attribute.String("messaging.operation.type", "send"),
 			attribute.Int("messaging.message.body.size", len(data)),
 		),
 	)

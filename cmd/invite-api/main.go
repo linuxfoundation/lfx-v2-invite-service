@@ -38,6 +38,7 @@ func main() {
 func run() error {
 	ctx := context.Background()
 
+	// Seed OTEL_SERVICE_VERSION before SDK init so autoexport picks it up via env.
 	if os.Getenv("OTEL_SERVICE_VERSION") == "" {
 		_ = os.Setenv("OTEL_SERVICE_VERSION", Version)
 	}
