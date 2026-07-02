@@ -114,7 +114,7 @@ func TestAcceptanceService_HandleInviteAccepted(t *testing.T) {
 				},
 			}
 			publisher := &mocks.EventPublisher{
-				PublishFunc: func(_ string, _ []byte) error {
+				PublishFunc: func(_ context.Context, _ string, _ []byte) error {
 					return tt.publishErr
 				},
 			}

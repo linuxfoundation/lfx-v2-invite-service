@@ -10,6 +10,10 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Client wraps the NATS connection and provides infrastructure operations.
@@ -55,16 +59,52 @@ func (c *Client) IsReady() error {
 
 // Request sends a synchronous NATS request and returns the raw response bytes.
 func (c *Client) Request(ctx context.Context, subject string, data []byte) ([]byte, error) {
-	msg, err := c.conn.RequestWithContext(ctx, subject, data)
+	ctx, span := tracer.Start(ctx, "nats.request",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "nats"),
+			attribute.String("messaging.destination.name", subject),
+			attribute.String("messaging.operation.type", "send"),
+			attribute.Int("messaging.message.body.size", len(data)),
+		),
+	)
+	defer span.End()
+
+	msg := nats.NewMsg(subject)
+	msg.Header = make(nats.Header)
+	msg.Data = data
+	otel.GetTextMapPropagator().Inject(ctx, natsHeaderCarrier(msg.Header))
+
+	reply, err := c.conn.RequestMsgWithContext(ctx, msg)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, newServiceUnavailable("NATS request failed", err)
 	}
-	return msg.Data, nil
+	return reply.Data, nil
 }
 
 // Publish sends a fire-and-forget NATS message with no reply expected.
-func (c *Client) Publish(subject string, data []byte) error {
-	if err := c.conn.Publish(subject, data); err != nil {
+func (c *Client) Publish(ctx context.Context, subject string, data []byte) error {
+	ctx, span := tracer.Start(ctx, "nats.publish",
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "nats"),
+			attribute.String("messaging.destination.name", subject),
+			attribute.String("messaging.operation.type", "publish"),
+			attribute.Int("messaging.message.body.size", len(data)),
+		),
+	)
+	defer span.End()
+
+	msg := nats.NewMsg(subject)
+	msg.Header = make(nats.Header)
+	msg.Data = data
+	otel.GetTextMapPropagator().Inject(ctx, natsHeaderCarrier(msg.Header))
+
+	if err := c.conn.PublishMsg(msg); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return newServiceUnavailable("NATS publish failed", err)
 	}
 	return nil
@@ -72,8 +112,22 @@ func (c *Client) Publish(subject string, data []byte) error {
 
 // QueueSubscribe registers a core-NATS queue-group subscriber and returns an
 // unsubscribe function the caller must invoke on shutdown.
-func (c *Client) QueueSubscribe(subject, queue string, handler nats.MsgHandler) (func(), error) {
-	sub, err := c.conn.QueueSubscribe(subject, queue, handler)
+// The handler receives the span context extracted from incoming message headers.
+func (c *Client) QueueSubscribe(subject, queue string, handler func(ctx context.Context, msg *nats.Msg)) (func(), error) {
+	sub, err := c.conn.QueueSubscribe(subject, queue, func(msg *nats.Msg) {
+		msgCtx := otel.GetTextMapPropagator().Extract(context.Background(), natsHeaderCarrier(msg.Header))
+		msgCtx, span := tracer.Start(msgCtx, "nats.process",
+			trace.WithSpanKind(trace.SpanKindConsumer),
+			trace.WithAttributes(
+				attribute.String("messaging.system", "nats"),
+				attribute.String("messaging.destination.name", subject),
+				attribute.String("messaging.operation.type", "process"),
+				attribute.Int("messaging.message.body.size", len(msg.Data)),
+			),
+		)
+		defer span.End()
+		handler(msgCtx, msg)
+	})
 	if err != nil {
 		return nil, newServiceUnavailable("failed to subscribe to "+subject, err)
 	}

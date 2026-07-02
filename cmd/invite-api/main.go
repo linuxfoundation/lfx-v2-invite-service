@@ -38,11 +38,11 @@ func main() {
 func run() error {
 	ctx := context.Background()
 
-	otelConfig := observability.OTelConfigFromEnv(ctx)
-	if otelConfig.ServiceVersion == "" {
-		otelConfig.ServiceVersion = Version
+	// Seed OTEL_SERVICE_VERSION before SDK init so autoexport picks it up via env.
+	if os.Getenv("OTEL_SERVICE_VERSION") == "" {
+		_ = os.Setenv("OTEL_SERVICE_VERSION", Version)
 	}
-	otelShutdown, err := observability.SetupOTelSDKWithConfig(ctx, otelConfig)
+	otelShutdown, err := observability.SetupOTelSDK(ctx)
 	if err != nil {
 		return err
 	}

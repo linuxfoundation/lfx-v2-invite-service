@@ -82,8 +82,10 @@ app:
     insecure: "false"
     # tracesExporter specifies the traces exporter: "otlp" or "none"
     tracesExporter: "none"
-    # tracesSampleRatio specifies the sampling ratio for traces (0.0 to 1.0)
-    tracesSampleRatio: "1.0"
+    # tracesSampler specifies the OTEL_TRACES_SAMPLER type (e.g. "parentbased_traceidratio")
+    tracesSampler: ""
+    # tracesSamplerArg specifies the OTEL_TRACES_SAMPLER_ARG (sampling ratio for ratio-based samplers)
+    tracesSamplerArg: ""
     # metricsExporter specifies the metrics exporter: "otlp" or "none"
     metricsExporter: "none"
     # logsExporter specifies the logs exporter: "otlp" or "none"

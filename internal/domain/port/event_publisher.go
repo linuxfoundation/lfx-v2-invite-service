@@ -3,7 +3,9 @@
 
 package port
 
+import "context"
+
 // EventPublisher publishes fire-and-forget NATS messages.
 type EventPublisher interface {
-	Publish(subject string, data []byte) error
+	Publish(ctx context.Context, subject string, data []byte) error
 }

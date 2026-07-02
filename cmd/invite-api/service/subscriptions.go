@@ -46,8 +46,8 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	}
 
 	// --- send_invite: request/reply from resource services ---
-	stopSend, err := NATSClient.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(msg *nats.Msg) {
-		msgCtx, cancel := context.WithTimeout(context.Background(), msgHandlerTimeout)
+	stopSend, err := NATSClient.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(ctx context.Context, msg *nats.Msg) {
+		msgCtx, cancel := context.WithTimeout(ctx, msgHandlerTimeout)
 		defer cancel()
 
 		var req model.SendInviteRequest
@@ -100,8 +100,8 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "send-invite")
 
 	// --- invite.accepted: fire-and-forget event from self-serve web app ---
-	stopAccepted, err := NATSClient.QueueSubscribe(api.InviteAcceptedSubject, acceptanceQueueGroup, func(msg *nats.Msg) {
-		msgCtx, cancel := context.WithTimeout(context.Background(), kvHandlerTimeout)
+	stopAccepted, err := NATSClient.QueueSubscribe(api.InviteAcceptedSubject, acceptanceQueueGroup, func(ctx context.Context, msg *nats.Msg) {
+		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
 		var evt api.InviteAcceptedEvent
@@ -124,8 +124,8 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "invite-accepted")
 
 	// --- get_invite: request/reply — fetch invite record by UID ---
-	stopGetInvite, err := NATSClient.QueueSubscribe(api.GetInviteSubject, getInviteQueueGroup, func(msg *nats.Msg) {
-		msgCtx, cancel := context.WithTimeout(context.Background(), kvHandlerTimeout)
+	stopGetInvite, err := NATSClient.QueueSubscribe(api.GetInviteSubject, getInviteQueueGroup, func(ctx context.Context, msg *nats.Msg) {
+		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
 		var req api.GetInviteRequest
@@ -171,8 +171,8 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "get-invite")
 
 	// --- get_invites_by_email: request/reply — fetch invite records by email ---
-	stopGetByEmail, err := NATSClient.QueueSubscribe(api.GetInvitesByEmailSubject, getByEmailQueueGroup, func(msg *nats.Msg) {
-		msgCtx, cancel := context.WithTimeout(context.Background(), kvHandlerTimeout)
+	stopGetByEmail, err := NATSClient.QueueSubscribe(api.GetInvitesByEmailSubject, getByEmailQueueGroup, func(ctx context.Context, msg *nats.Msg) {
+		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
 		var req api.GetInvitesByEmailRequest
