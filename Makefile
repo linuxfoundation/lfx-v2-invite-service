@@ -4,7 +4,6 @@
 BINARY_NAME := invite-api
 APP_NAME := lfx-v2-invite-service/invite-service
 VERSION := $(shell git describe --tags --always 2>/dev/null || echo "dev")
-BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 GIT_COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
 
 DOCKER_REGISTRY := ghcr.io/linuxfoundation
@@ -36,7 +35,7 @@ deps: setup
 build:
 	@mkdir -p bin
 	go build \
-		-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)" \
+		-ldflags "-X main.Version=$(VERSION) -X main.GitCommit=$(GIT_COMMIT)" \
 		-o bin/$(BINARY_NAME) ./cmd/invite-api
 
 .PHONY: run
