@@ -60,7 +60,6 @@ jobs:
         run: |
           GIT_COMMIT=${GIT_COMMIT:0:7}
           export GIT_COMMIT
-          export GOFLAGS="-ldflags=-X 'main.Version=${VERSION}' -X 'main.GitCommit=${GIT_COMMIT}'"
           ko build github.com/linuxfoundation/lfx-v2-invite-service/cmd/invite-api \
             -B \
             --platform linux/amd64,linux/arm64 \
