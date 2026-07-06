@@ -35,6 +35,7 @@ deps: setup
 build:
 	@mkdir -p bin
 	go build \
+		-trimpath \
 		-ldflags "-X main.Version=$(VERSION) -X main.GitCommit=$(GIT_COMMIT)" \
 		-o bin/$(BINARY_NAME) ./cmd/invite-api
 
