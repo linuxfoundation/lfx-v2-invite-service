@@ -17,7 +17,6 @@ import (
 
 var (
 	Version   = "dev"
-	BuildTime = "unknown"
 	GitCommit = "unknown"
 )
 
@@ -56,7 +55,6 @@ func run() error {
 
 	slog.InfoContext(ctx, "starting invite service",
 		"version", Version,
-		"build_time", BuildTime,
 		"git_commit", GitCommit,
 	)
 
