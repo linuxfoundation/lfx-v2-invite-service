@@ -28,7 +28,7 @@ type noopLinkGenerator struct{}
 // errorLinkGenerator always returns an error from Generate.
 type errorLinkGenerator struct{ err error }
 
-func (e *errorLinkGenerator) Generate(_, _, _, _ string, _ int) (string, string, time.Time, error) {
+func (e *errorLinkGenerator) Generate(_, _, _, _, _ string, _ int) (string, string, time.Time, error) {
 	return "", "", time.Time{}, e.err
 }
 
@@ -43,7 +43,7 @@ func captureLogs(t *testing.T) *bytes.Buffer {
 	return buf
 }
 
-func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL, resourceUID, role string, expirationDays int) (string, string, time.Time, error) {
+func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL, resourceUID, resourceType, role string, expirationDays int) (string, string, time.Time, error) {
 	return testBaseURL + "/invite?token=test-token-for-" + recipientEmail, "test-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
 }
 

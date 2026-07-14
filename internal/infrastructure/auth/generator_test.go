@@ -19,10 +19,11 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	recipientEmail := "user@example.com"
 	returnURL := "https://lfx.example.com/project/overview?project=my-project"
 	resourceUID := "proj-abc123"
+	resourceType := "group"
 	role := "Manage"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, inviteUID, expiresAt, err := gen.Generate(recipientEmail, returnURL, resourceUID, role, 0)
+	link, inviteUID, expiresAt, err := gen.Generate(recipientEmail, returnURL, resourceUID, resourceType, role, 0)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -67,6 +68,9 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	if got := claims["resource_uid"]; got != resourceUID {
 		t.Errorf("resource_uid claim = %v, want %v", got, resourceUID)
 	}
+	if got := claims["resource_type"]; got != resourceType {
+		t.Errorf("resource_type claim = %v, want %v", got, resourceType)
+	}
 	if got := claims["role"]; got != role {
 		t.Errorf("role claim = %v, want %v", got, role)
 	}
@@ -103,7 +107,7 @@ func TestLinkGenerator_Generate_Custom_ExpirationDays(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, _, expiresAt, err := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage", 30)
+	link, _, expiresAt, err := gen.Generate("user@example.com", "https://example.com", "res-123", "project", "Manage", 30)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -141,7 +145,7 @@ func TestLinkGenerator_Generate_WrongSecret(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, _, _, err := gen.Generate("user@example.com", "https://example.com/dest", "res-123", "Manage", 0)
+	link, _, _, err := gen.Generate("user@example.com", "https://example.com/dest", "res-123", "", "Manage", 0)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -160,10 +164,36 @@ func TestLinkGenerator_Generate_UniqueJTI(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	link1, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage", 0)
-	link2, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "Manage", 0)
+	link1, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0)
+	link2, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0)
 
 	if link1 == link2 {
 		t.Error("two Generate() calls for the same input produced identical links (jti must be unique)")
+	}
+}
+
+func TestLinkGenerator_Generate_EmptyResourceType_ClaimOmitted(t *testing.T) {
+	secret := []byte("test-secret-must-be-at-least-32bytes!")
+	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
+
+	link, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	tokenStr := strings.TrimPrefix(link, "https://lfx.example.com/invite?token=")
+	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return secret, nil
+	})
+	if err != nil {
+		t.Fatalf("jwt.Parse() error = %v", err)
+	}
+
+	claims, _ := token.Claims.(jwt.MapClaims)
+	if _, present := claims["resource_type"]; present {
+		t.Error("resource_type claim should be absent when resourceType is empty, but it was present")
 	}
 }
