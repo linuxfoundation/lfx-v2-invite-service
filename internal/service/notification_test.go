@@ -422,6 +422,47 @@ func TestHandleSendInvite_ReturnURLReplacedWithSignedLink(t *testing.T) {
 	}
 }
 
+// spyLinkGenerator records the customClaims argument passed to Generate so tests can
+// assert that HandleSendInvite threads CustomClaims through to the link generator.
+type spyLinkGenerator struct {
+	capturedClaims map[string]string
+}
+
+func (s *spyLinkGenerator) Generate(recipientEmail, _, _, _, _ string, _ int, customClaims map[string]string) (string, string, time.Time, error) {
+	s.capturedClaims = customClaims
+	return testBaseURL + "/invite?token=spy-token-for-" + recipientEmail, "spy-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
+}
+
+// TestHandleSendInvite_CustomClaimsThreaded verifies that CustomClaims set on the
+// request are forwarded to the LinkGenerator unchanged.
+func TestHandleSendInvite_CustomClaimsThreaded(t *testing.T) {
+	email := &mocks.EmailSender{
+		SendFunc: func(_ context.Context, _ *model.SendInviteRequest) error { return nil },
+	}
+	spy := &spyLinkGenerator{}
+	svc := NewNotificationService(email, spy, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
+
+	req := baseInviteRequest()
+	req.CustomClaims = map[string]string{
+		"committee_invite_uid": "inv-abc123",
+		"extra_key":            "extra_value",
+	}
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("HandleSendInvite() error = %v", err)
+	}
+	if spy.capturedClaims == nil {
+		t.Fatal("LinkGenerator.Generate() was not called with any custom claims")
+	}
+	if got := spy.capturedClaims["committee_invite_uid"]; got != "inv-abc123" {
+		t.Errorf("committee_invite_uid = %q, want %q", got, "inv-abc123")
+	}
+	if got := spy.capturedClaims["extra_key"]; got != "extra_value" {
+		t.Errorf("extra_key = %q, want %q", got, "extra_value")
+	}
+}
+
 // M18.3: when SendNotification fails, a DeliveryStateFailed audit entry is emitted.
 func TestHandleSendInvite_EmailSendError_AuditsFailed(t *testing.T) {
 	buf := captureLogs(t)

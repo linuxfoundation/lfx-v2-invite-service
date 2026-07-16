@@ -173,7 +173,7 @@ type SendInviteRequest struct {
 	// Callers can use this to carry resource-specific context (e.g. "committee_invite_uid")
 	// that the invite service is not aware of. Keys that collide with reserved JWT claims
 	// (iss, aud, iat, nbf, exp, jti, invite_uid, email, return_url, resource_uid,
-	// resource_type, role) are silently ignored to prevent claim hijacking.
+	// resource_type, role) are ignored (with a warning log) to prevent claim hijacking.
 	CustomClaims map[string]string `json:"custom_claims,omitempty"`
 }
 
