@@ -169,6 +169,12 @@ type SendInviteRequest struct {
 	// ExpirationDays is the number of days the invite token should be valid.
 	// If 0 or omitted, defaults to 30 days. Maximum is 90 days.
 	ExpirationDays int `json:"expiration_days,omitempty"`
+	// CustomClaims are additional string claims to embed in the signed JWT token.
+	// Callers can use this to carry resource-specific context (e.g. "committee_invite_uid")
+	// that the invite service is not aware of. Keys that collide with reserved JWT claims
+	// (iss, aud, iat, nbf, exp, jti, invite_uid, email, return_url, resource_uid,
+	// resource_type, role) are silently ignored to prevent claim hijacking.
+	CustomClaims map[string]string `json:"custom_claims,omitempty"`
 }
 
 // InviteAcceptedEvent is the payload published on InviteAcceptedSubject by the

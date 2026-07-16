@@ -23,7 +23,7 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	role := "Manage"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, inviteUID, expiresAt, err := gen.Generate(recipientEmail, returnURL, resourceUID, resourceType, role, 0)
+	link, inviteUID, expiresAt, err := gen.Generate(recipientEmail, returnURL, resourceUID, resourceType, role, 0, nil)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -107,7 +107,7 @@ func TestLinkGenerator_Generate_Custom_ExpirationDays(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, _, expiresAt, err := gen.Generate("user@example.com", "https://example.com", "res-123", "project", "Manage", 30)
+	link, _, expiresAt, err := gen.Generate("user@example.com", "https://example.com", "res-123", "project", "Manage", 30, nil)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -145,7 +145,7 @@ func TestLinkGenerator_Generate_WrongSecret(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, _, _, err := gen.Generate("user@example.com", "https://example.com/dest", "res-123", "", "Manage", 0)
+	link, _, _, err := gen.Generate("user@example.com", "https://example.com/dest", "res-123", "", "Manage", 0, nil)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -164,8 +164,8 @@ func TestLinkGenerator_Generate_UniqueJTI(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	link1, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0)
-	link2, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0)
+	link1, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
+	link2, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
 
 	if link1 == link2 {
 		t.Error("two Generate() calls for the same input produced identical links (jti must be unique)")
@@ -176,7 +176,7 @@ func TestLinkGenerator_Generate_EmptyResourceType_ClaimOmitted(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	link, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0)
+	link, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -195,5 +195,74 @@ func TestLinkGenerator_Generate_EmptyResourceType_ClaimOmitted(t *testing.T) {
 	claims, _ := token.Claims.(jwt.MapClaims)
 	if _, present := claims["resource_type"]; present {
 		t.Error("resource_type claim should be absent when resourceType is empty, but it was present")
+	}
+}
+
+func TestLinkGenerator_Generate_CustomClaims_Embedded(t *testing.T) {
+	secret := []byte("test-secret-must-be-at-least-32bytes!")
+	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
+
+	customClaims := map[string]string{
+		"committee_invite_uid": "inv-abc123",
+		"tenant_id":            "tenant-xyz",
+	}
+	link, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, customClaims)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	tokenStr := strings.TrimPrefix(link, "https://lfx.example.com/invite?token=")
+	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return secret, nil
+	})
+	if err != nil {
+		t.Fatalf("jwt.Parse() error = %v", err)
+	}
+
+	claims, _ := token.Claims.(jwt.MapClaims)
+	if got := claims["committee_invite_uid"]; got != "inv-abc123" {
+		t.Errorf("committee_invite_uid claim = %v, want %v", got, "inv-abc123")
+	}
+	if got := claims["tenant_id"]; got != "tenant-xyz" {
+		t.Errorf("tenant_id claim = %v, want %v", got, "tenant-xyz")
+	}
+}
+
+func TestLinkGenerator_Generate_CustomClaims_ReservedKeysIgnored(t *testing.T) {
+	secret := []byte("test-secret-must-be-at-least-32bytes!")
+	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
+
+	// Attempt to override a reserved claim via CustomClaims — must be silently ignored.
+	customClaims := map[string]string{
+		"email":                "attacker@evil.com",
+		"committee_invite_uid": "inv-safe",
+	}
+	link, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, customClaims)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	tokenStr := strings.TrimPrefix(link, "https://lfx.example.com/invite?token=")
+	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return secret, nil
+	})
+	if err != nil {
+		t.Fatalf("jwt.Parse() error = %v", err)
+	}
+
+	claims, _ := token.Claims.(jwt.MapClaims)
+	// The reserved email claim must retain the original value, not the attacker's override.
+	if got := claims["email"]; got != "user@example.com" {
+		t.Errorf("email claim = %v, want original %v (reserved key must not be overridable)", got, "user@example.com")
+	}
+	// Non-reserved custom claim must still be present.
+	if got := claims["committee_invite_uid"]; got != "inv-safe" {
+		t.Errorf("committee_invite_uid claim = %v, want %v", got, "inv-safe")
 	}
 }
