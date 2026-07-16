@@ -15,6 +15,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/auth"
 )
 
 // Stable error sentinels exposed to the transport layer so it can map handler
@@ -117,6 +118,9 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	// plain URL would deliver an LFX-branded email pointing to an unsigned, unrevokable link.
 	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(canonicalEmail, destURL, resourceUID, req.ResolvedResourceType(), roleStr, req.ExpirationDays, req.CustomClaims)
 	if linkErr != nil {
+		if errors.Is(linkErr, auth.ErrInvalidCustomClaims) {
+			return SendInviteResult{}, fmt.Errorf("%w: %w", ErrInvalidRequest, linkErr)
+		}
 		return SendInviteResult{}, fmt.Errorf("generate invite link for resource %s: %w", resourceUID, linkErr)
 	}
 

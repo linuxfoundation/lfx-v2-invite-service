@@ -4,6 +4,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -11,6 +12,12 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
+
+// ErrInvalidCustomClaims is returned by Generate when the caller-supplied
+// customClaims map fails size or count validation. It is distinct from signing
+// errors so callers can map it to an "invalid_request" response code rather
+// than "internal_error".
+var ErrInvalidCustomClaims = errors.New("invalid custom claims")
 
 const (
 	tokenTTL          = 30 * 24 * time.Hour
@@ -91,14 +98,14 @@ func (g *LinkGenerator) Generate(recipientEmail, returnURL, resourceUID, resourc
 		claims["resource_type"] = resourceType
 	}
 	if len(customClaims) > maxCustomClaims {
-		return "", "", time.Time{}, fmt.Errorf("custom_claims: too many entries (%d > %d)", len(customClaims), maxCustomClaims)
+		return "", "", time.Time{}, fmt.Errorf("%w: too many entries (%d > %d)", ErrInvalidCustomClaims, len(customClaims), maxCustomClaims)
 	}
 	for k, v := range customClaims {
 		if len(k) > maxCustomClaimKeyLen {
-			return "", "", time.Time{}, fmt.Errorf("custom_claims: key %q exceeds max length (%d > %d)", k, len(k), maxCustomClaimKeyLen)
+			return "", "", time.Time{}, fmt.Errorf("%w: key %q exceeds max length (%d > %d)", ErrInvalidCustomClaims, k, len(k), maxCustomClaimKeyLen)
 		}
 		if len(v) > maxCustomClaimValueLen {
-			return "", "", time.Time{}, fmt.Errorf("custom_claims: value for key %q exceeds max length (%d > %d)", k, len(v), maxCustomClaimValueLen)
+			return "", "", time.Time{}, fmt.Errorf("%w: value for key %q exceeds max length (%d > %d)", ErrInvalidCustomClaims, k, len(v), maxCustomClaimValueLen)
 		}
 		if _, reserved := reservedClaims[k]; reserved {
 			slog.Warn("custom claim key is reserved and will be ignored", "key", k)

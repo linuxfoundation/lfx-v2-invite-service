@@ -4,6 +4,7 @@
 package auth_test
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -273,13 +274,32 @@ func TestLinkGenerator_Generate_CustomClaims_SubReserved(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	// sub is an RFC 7519 registered claim and must be reserved.
-	_, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
+	link, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
 		"sub":                  "attacker",
 		"committee_invite_uid": "inv-safe",
 	})
-	// Generate should succeed (reserved key is skipped, not an error), but sub must not be set by caller.
 	if err != nil {
 		t.Fatalf("Generate() unexpected error = %v", err)
+	}
+
+	tokenStr := strings.TrimPrefix(link, "https://lfx.example.com/invite?token=")
+	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return secret, nil
+	})
+	if err != nil {
+		t.Fatalf("jwt.Parse() error = %v", err)
+	}
+	claims, _ := token.Claims.(jwt.MapClaims)
+	// sub must be absent — a caller must not be able to set the subject claim.
+	if _, present := claims["sub"]; present {
+		t.Errorf("sub claim is present in token, want it absent (reserved key must not be overridable)")
+	}
+	// Non-reserved custom claim must still be present.
+	if got := claims["committee_invite_uid"]; got != "inv-safe" {
+		t.Errorf("committee_invite_uid claim = %v, want %v", got, "inv-safe")
 	}
 }
 
@@ -295,6 +315,9 @@ func TestLinkGenerator_Generate_CustomClaims_TooMany(t *testing.T) {
 	if err == nil {
 		t.Fatal("Generate() expected error for too many custom claims, got nil")
 	}
+	if !errors.Is(err, auth.ErrInvalidCustomClaims) {
+		t.Errorf("expected ErrInvalidCustomClaims, got %v", err)
+	}
 }
 
 func TestLinkGenerator_Generate_CustomClaims_KeyTooLong(t *testing.T) {
@@ -308,6 +331,9 @@ func TestLinkGenerator_Generate_CustomClaims_KeyTooLong(t *testing.T) {
 	if err == nil {
 		t.Fatal("Generate() expected error for oversized key, got nil")
 	}
+	if !errors.Is(err, auth.ErrInvalidCustomClaims) {
+		t.Errorf("expected ErrInvalidCustomClaims, got %v", err)
+	}
 }
 
 func TestLinkGenerator_Generate_CustomClaims_ValueTooLong(t *testing.T) {
@@ -320,5 +346,8 @@ func TestLinkGenerator_Generate_CustomClaims_ValueTooLong(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("Generate() expected error for oversized value, got nil")
+	}
+	if !errors.Is(err, auth.ErrInvalidCustomClaims) {
+		t.Errorf("expected ErrInvalidCustomClaims, got %v", err)
 	}
 }

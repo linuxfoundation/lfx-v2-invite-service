@@ -14,6 +14,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port/mocks"
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/auth"
 )
 
 const (
@@ -262,6 +263,25 @@ func TestHandleSendInvite_LinkGeneratorFailure_NoEmailSent(t *testing.T) {
 	}
 	if len(email.Calls) != 0 {
 		t.Errorf("expected no email sent when link generation fails, got %d call(s)", len(email.Calls))
+	}
+}
+
+// TestHandleSendInvite_CustomClaimsValidationError verifies that ErrInvalidCustomClaims
+// from the link generator is surfaced as ErrInvalidRequest so callers receive
+// "invalid_request" rather than "internal_error".
+func TestHandleSendInvite_CustomClaimsValidationError(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := NewNotificationService(email, &errorLinkGenerator{err: auth.ErrInvalidCustomClaims}, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
+
+	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	if err == nil {
+		t.Fatal("expected error when link generator returns ErrInvalidCustomClaims, got nil")
+	}
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Errorf("expected ErrInvalidRequest, got %v", err)
+	}
+	if len(email.Calls) != 0 {
+		t.Errorf("expected no email sent on validation error, got %d call(s)", len(email.Calls))
 	}
 }
 
