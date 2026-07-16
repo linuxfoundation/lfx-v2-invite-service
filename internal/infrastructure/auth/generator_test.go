@@ -4,6 +4,7 @@
 package auth_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -235,7 +236,7 @@ func TestLinkGenerator_Generate_CustomClaims_ReservedKeysIgnored(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	// Attempt to override a reserved claim via CustomClaims — must be silently ignored.
+	// Attempt to override a reserved claim via CustomClaims — must be ignored (with a warning log).
 	customClaims := map[string]string{
 		"email":                "attacker@evil.com",
 		"committee_invite_uid": "inv-safe",
@@ -264,5 +265,60 @@ func TestLinkGenerator_Generate_CustomClaims_ReservedKeysIgnored(t *testing.T) {
 	// Non-reserved custom claim must still be present.
 	if got := claims["committee_invite_uid"]; got != "inv-safe" {
 		t.Errorf("committee_invite_uid claim = %v, want %v", got, "inv-safe")
+	}
+}
+
+func TestLinkGenerator_Generate_CustomClaims_SubReserved(t *testing.T) {
+	secret := []byte("test-secret-must-be-at-least-32bytes!")
+	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
+
+	// sub is an RFC 7519 registered claim and must be reserved.
+	_, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
+		"sub":                  "attacker",
+		"committee_invite_uid": "inv-safe",
+	})
+	// Generate should succeed (reserved key is skipped, not an error), but sub must not be set by caller.
+	if err != nil {
+		t.Fatalf("Generate() unexpected error = %v", err)
+	}
+}
+
+func TestLinkGenerator_Generate_CustomClaims_TooMany(t *testing.T) {
+	secret := []byte("test-secret-must-be-at-least-32bytes!")
+	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
+
+	claims := make(map[string]string, 17)
+	for i := 0; i < 17; i++ {
+		claims[fmt.Sprintf("key%d", i)] = "value"
+	}
+	_, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, claims)
+	if err == nil {
+		t.Fatal("Generate() expected error for too many custom claims, got nil")
+	}
+}
+
+func TestLinkGenerator_Generate_CustomClaims_KeyTooLong(t *testing.T) {
+	secret := []byte("test-secret-must-be-at-least-32bytes!")
+	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
+
+	longKey := strings.Repeat("k", 65)
+	_, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
+		longKey: "value",
+	})
+	if err == nil {
+		t.Fatal("Generate() expected error for oversized key, got nil")
+	}
+}
+
+func TestLinkGenerator_Generate_CustomClaims_ValueTooLong(t *testing.T) {
+	secret := []byte("test-secret-must-be-at-least-32bytes!")
+	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
+
+	longValue := strings.Repeat("v", 1025)
+	_, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
+		"committee_invite_uid": longValue,
+	})
+	if err == nil {
+		t.Fatal("Generate() expected error for oversized value, got nil")
 	}
 }
