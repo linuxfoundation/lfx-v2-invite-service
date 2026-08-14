@@ -18,7 +18,7 @@ This repo owns the invite lifecycle: send, persist, accept, and look up invite r
 cmd/invite-api/
 ├── main.go                     # OTel bootstrap, build version injection, signal handling, graceful shutdown
 └── service/
-    ├── config.go               # ALL env var reads live here — no os.Getenv in other layers
+    ├── config.go               # application env var reads live here (OTel SDK vars are the documented exception in main.go/otel.go)
     ├── implementations.go      # Wires infrastructure into service structs; global vars NATSClient, NotificationSvc, etc.
     └── subscriptions.go        # NATS subscriber registration (one QueueSubscribe per subject)
 
@@ -56,7 +56,7 @@ pkg/
 
 - **OTel trace propagation is automatic.** `Client.QueueSubscribe` in `internal/infrastructure/nats/client.go` extracts the incoming trace context from NATS message headers and starts a consumer span before calling the handler. Handlers do not need to start their own spans — just use the `ctx` they receive.
 - **pkg/api is the public contract.** Any service that wants to interact with the invite service imports `github.com/linuxfoundation/lfx-v2-invite-service/pkg/api` for subject constants and payload types. Never expose `internal/` packages to callers.
-- **`pkg/constants` must not be used or extended.** The three files `pkg/constants/nats.go`, `pkg/constants/env.go`, and `pkg/constants/email.go` are aspirational stubs that predate the real implementation and contain stale or unused values (e.g. `InviteAcceptedSubject = "lfx.invite-service.invite.accepted"` conflicts with the live subject `"lfx.invite.accepted"` in `pkg/api`). Do not add constants here; always use `pkg/api` as the source of truth.
+- **`pkg/constants` was removed; do not recreate it.** The package was deleted in commit `dbc1d6a` in favor of `pkg/api`. `pkg/api` is the sole public-contract package. Do not add a `pkg/constants` package; always use `pkg/api` as the source of truth.
 - **Persist before send; rollback on failure.** `HandleSendInvite` writes the invite record to KV before calling the email service. If the email dispatch fails, it attempts a best-effort KV delete to avoid phantom invites.
 - **JWT signed invite links are never stored.** The KV record stores the *destination URL*, not the signed token. The token is generated on the fly and included in the email body only.
 - **Email index uses base64url encoding.** Raw email addresses contain characters (`@`, `+`) that are not valid NATS KV key segments. The repository encodes emails with `base64.RawURLEncoding` before using them as key prefixes. Both read and write paths use the same encoding so prefix scans stay correct.
@@ -148,7 +148,7 @@ Authoritative subject constants and payload types live in `pkg/api/invite.go`.
 | `api.InviteCreatedSubject` | `lfx.invite-service.invite.created` | Published (future) | Invite issued |
 | `api.InviteRevokedSubject` | `lfx.invite-service.invite.revoked` | Published (future) | Invite revoked |
 
-> **Do not use `pkg/constants`.** `pkg/constants/nats.go` defines a stale `InviteAcceptedSubject = "lfx.invite-service.invite.accepted"` that conflicts with the live subject `"lfx.invite.accepted"` in `pkg/api`. The entire `pkg/constants` package is aspirational legacy and must not be extended or used in new code. Always use `pkg/api` constants as the source of truth.
+> **`pkg/api` is the sole public-contract package.** `pkg/constants` was deleted (see commit `dbc1d6a`). Always use `pkg/api` subject constants and types — never recreate `pkg/constants`.
 
 ## NATS KV Storage
 
@@ -183,7 +183,7 @@ Application config reads are centralized in `cmd/invite-api/service/config.go` �
 | `DEFAULT_INVITE_LINK_RETURN_URL` | _(value of `LFX_SELF_SERVE_BASE_URL`)_ | Fallback destination URL embedded in the invite JWT when callers omit `return_url` |
 | `ALLOWED_RETURN_URL_HOSTS` | `*.lfx.dev,*.linuxfoundation.org` | Comma-separated host patterns (wildcard supported) that caller-supplied `return_url` values must match |
 | `INVITES_KV_BUCKET` | `invites` | Name of the NATS JetStream KV bucket; bucket must already exist |
-| `LOG_LEVEL` | `""` (info) | `debug`, `info`, `warn`, `error` |
+| `LOG_LEVEL` | `""` (debug) | `debug`, `info`, `warn`; unset or unrecognized values default to `debug` |
 | `OTEL_TRACES_EXPORTER` | `otlp` | OTel span exporter; `none` disables tracing |
 | `OTEL_METRICS_EXPORTER` | `otlp` | OTel metrics exporter; `none` disables metrics |
 | `OTEL_LOGS_EXPORTER` | `otlp` | OTel log exporter; `none` disables OTel log bridge |
