@@ -40,6 +40,9 @@ type SendInviteRequest struct {
 	// ExpirationDays is the number of days the invite token should be valid.
 	// If 0 or omitted, defaults to 30 days. Maximum is 90 days.
 	ExpirationDays int `json:"expiration_days,omitempty"`
+	// CustomClaims are additional string claims to embed in the signed JWT token.
+	// See pkg/api.SendInviteRequest.CustomClaims for the full contract.
+	CustomClaims map[string]string `json:"custom_claims,omitempty"`
 }
 
 // ResolvedRecipientEmail returns the recipient email, preferring the structured

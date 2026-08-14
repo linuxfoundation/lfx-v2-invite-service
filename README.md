@@ -39,6 +39,7 @@ persists a `pending` invite record in KV.
 | `return_url` | string | no | URL the invite link redirects to after acceptance. Must use `https` and match the `ALLOWED_RETURN_URL_HOSTS` allowlist. Defaults to `DEFAULT_INVITE_LINK_RETURN_URL` when omitted |
 | `org_name` | string | no | Foundation or project name used in the email signature ("The X Team"). Defaults to `"LFX"` when empty |
 | `expiration_days` | int | no | Number of days before the invite JWT expires. Defaults to 30, capped at 90 |
+| `custom_claims` | object | no | Additional string key/value pairs to embed in the signed JWT. Useful for carrying resource-specific context (e.g. `{"committee_invite_uid": "inv-abc"}`) that the invite service is not aware of. Reserved JWT keys (`iss`, `aud`, `sub`, `iat`, `nbf`, `exp`, `jti`, `invite_uid`, `email`, `return_url`, `resource_uid`, `resource_type`, `role`) are ignored with a warning log. Rejected if more than 16 entries, any key exceeds 64 bytes, or any value exceeds 1024 bytes |
 
 > **Deprecated scalar fields** — `recipient_email`, `recipient_name`, `inviter_name`,
 > `resource_uid`, `resource_name`, `resource_type` are accepted for backward
@@ -63,7 +64,10 @@ persists a `pending` invite record in KV.
   },
   "role": "Member",
   "org_name": "The Linux Foundation",
-  "expiration_days": 30
+  "expiration_days": 30,
+  "custom_claims": {
+    "committee_invite_uid": "inv-abc123"
+  }
 }
 ```
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port/mocks"
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/auth"
 )
 
 const (
@@ -28,7 +29,7 @@ type noopLinkGenerator struct{}
 // errorLinkGenerator always returns an error from Generate.
 type errorLinkGenerator struct{ err error }
 
-func (e *errorLinkGenerator) Generate(_, _, _, _, _ string, _ int) (string, string, time.Time, error) {
+func (e *errorLinkGenerator) Generate(_, _, _, _, _ string, _ int, _ map[string]string) (string, string, time.Time, error) {
 	return "", "", time.Time{}, e.err
 }
 
@@ -43,7 +44,7 @@ func captureLogs(t *testing.T) *bytes.Buffer {
 	return buf
 }
 
-func (n *noopLinkGenerator) Generate(recipientEmail, destinationURL, resourceUID, resourceType, role string, expirationDays int) (string, string, time.Time, error) {
+func (n *noopLinkGenerator) Generate(recipientEmail, _, _, _, _ string, _ int, _ map[string]string) (string, string, time.Time, error) {
 	return testBaseURL + "/invite?token=test-token-for-" + recipientEmail, "test-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
 }
 
@@ -265,6 +266,25 @@ func TestHandleSendInvite_LinkGeneratorFailure_NoEmailSent(t *testing.T) {
 	}
 }
 
+// TestHandleSendInvite_CustomClaimsValidationError verifies that ErrInvalidCustomClaims
+// from the link generator is surfaced as ErrInvalidRequest so callers receive
+// "invalid_request" rather than "internal_error".
+func TestHandleSendInvite_CustomClaimsValidationError(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := NewNotificationService(email, &errorLinkGenerator{err: auth.ErrInvalidCustomClaims}, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
+
+	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	if err == nil {
+		t.Fatal("expected error when link generator returns ErrInvalidCustomClaims, got nil")
+	}
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Errorf("expected ErrInvalidRequest, got %v", err)
+	}
+	if len(email.Calls) != 0 {
+		t.Errorf("expected no email sent on validation error, got %d call(s)", len(email.Calls))
+	}
+}
+
 // TestHandleSendInvite_InviteStorePersistsPending verifies that a successful send
 // creates a pending InviteRecord in the store with the destination URL (not the JWT link).
 func TestHandleSendInvite_InviteStorePersistsPending(t *testing.T) {
@@ -419,6 +439,47 @@ func TestHandleSendInvite_ReturnURLReplacedWithSignedLink(t *testing.T) {
 	}
 	if !strings.Contains(got, "/invite?token=") {
 		t.Errorf("ReturnURL %q does not look like a signed invite link", got)
+	}
+}
+
+// spyLinkGenerator records the customClaims argument passed to Generate so tests can
+// assert that HandleSendInvite threads CustomClaims through to the link generator.
+type spyLinkGenerator struct {
+	capturedClaims map[string]string
+}
+
+func (s *spyLinkGenerator) Generate(recipientEmail, _, _, _, _ string, _ int, customClaims map[string]string) (string, string, time.Time, error) {
+	s.capturedClaims = customClaims
+	return testBaseURL + "/invite?token=spy-token-for-" + recipientEmail, "spy-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
+}
+
+// TestHandleSendInvite_CustomClaimsThreaded verifies that CustomClaims set on the
+// request are forwarded to the LinkGenerator unchanged.
+func TestHandleSendInvite_CustomClaimsThreaded(t *testing.T) {
+	email := &mocks.EmailSender{
+		SendFunc: func(_ context.Context, _ *model.SendInviteRequest) error { return nil },
+	}
+	spy := &spyLinkGenerator{}
+	svc := NewNotificationService(email, spy, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
+
+	req := baseInviteRequest()
+	req.CustomClaims = map[string]string{
+		"committee_invite_uid": "inv-abc123",
+		"extra_key":            "extra_value",
+	}
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("HandleSendInvite() error = %v", err)
+	}
+	if spy.capturedClaims == nil {
+		t.Fatal("LinkGenerator.Generate() was not called with any custom claims")
+	}
+	if got := spy.capturedClaims["committee_invite_uid"]; got != "inv-abc123" {
+		t.Errorf("committee_invite_uid = %q, want %q", got, "inv-abc123")
+	}
+	if got := spy.capturedClaims["extra_key"]; got != "extra_value" {
+		t.Errorf("extra_key = %q, want %q", got, "extra_value")
 	}
 }
 
