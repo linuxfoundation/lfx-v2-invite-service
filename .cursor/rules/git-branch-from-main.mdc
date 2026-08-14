@@ -1,0 +1,21 @@
+---
+description: Always branch from an up-to-date main when starting new work
+alwaysApply: true
+---
+
+# Branch from up-to-date main
+
+Before starting any new feature, fix, refactor, or other body of work, always bring `main` up to date and branch from it:
+
+```bash
+git checkout main
+git pull origin main
+git checkout -b <branch-name>
+```
+
+**Why:** Branching from a stale local `main` causes PRs to be behind `origin/main`, which leads to unnecessary merge conflicts and out-of-date diffs.
+
+**Rules:**
+- Never branch from an existing feature branch unless the task is explicitly a follow-on to that branch's work.
+- Always run `git pull origin main` — not just `git checkout main` — so the local ref is current before branching.
+- If `main` has moved since a branch was cut and the branch is not yet pushed, rebase onto the updated `main` before opening the PR.
