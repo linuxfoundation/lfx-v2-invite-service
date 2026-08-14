@@ -172,7 +172,7 @@ Set `INVITES_KV_BUCKET=invites` (or leave unset — defaults to `invites`).
 
 ## Environment Variables
 
-All reads are centralized in `cmd/invite-api/service/config.go` → `AppConfigFromEnv()`. No other layer calls `os.Getenv`.
+Application config reads are centralized in `cmd/invite-api/service/config.go` → `AppConfigFromEnv()`. **Exception:** OTel SDK variables (`OTEL_*`) are read directly by `main.go` and `internal/infrastructure/observability/otel.go` before `AppConfigFromEnv()` runs, because the OTel SDK must be bootstrapped first. All other layers must not call `os.Getenv` — use the typed config struct instead.
 
 | Variable | Default | Notes |
 |---|---|---|
@@ -196,7 +196,7 @@ All reads are centralized in `cmd/invite-api/service/config.go` → `AppConfigFr
 
 ### Config injection
 
-All `os.Getenv` calls belong in `cmd/invite-api/service/config.go` → `AppConfigFromEnv()`. Services receive a typed config struct (e.g., `NotificationConfig`), never call `os.Getenv` themselves.
+All `os.Getenv` calls belong in `cmd/invite-api/service/config.go` → `AppConfigFromEnv()`. Services receive a typed config struct (e.g., `NotificationConfig`), never call `os.Getenv` themselves. The one exception is the OTel SDK bootstrap in `main.go` and `internal/infrastructure/observability/otel.go`, which must read `OTEL_*` vars directly before `AppConfigFromEnv()` is called.
 
 ### Adding a new NATS subject
 
@@ -248,8 +248,8 @@ Every `.go` file must start with:
 `charts/lfx-v2-invite-service/` ships with the Go code in the same PR.
 
 - `nats-kv-buckets.yaml` — provisions the `invites` KV bucket via the nack `KeyValue` CRD.
-- `externalsecret.yaml` + `secretstore.yaml` — External Secrets Operator integration for `INVITE_JWT_SECRET` from AWS Secrets Manager.
-- The `INVITE_JWT_SECRET` is never baked into the chart; it is injected at runtime from the Kubernetes Secret created by the External Secrets Operator.
+- `externalsecret.yaml` + `secretstore.yaml` — Optional External Secrets Operator (ESO) integration for `INVITE_JWT_SECRET` from AWS Secrets Manager. ESO is disabled by default (`externalSecretsOperator.enabled: false`).
+- The `INVITE_JWT_SECRET` is never baked into the chart; it is always injected at runtime from a Kubernetes Secret (named by `app.jwtSecretName`). That Secret may be created by ESO when enabled, or provisioned independently by another mechanism.
 
 ## Related Services
 
