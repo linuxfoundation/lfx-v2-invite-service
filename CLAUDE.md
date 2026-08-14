@@ -159,6 +159,7 @@ The service owns the `invites` NATS JetStream KeyValue bucket:
 - Records are kept indefinitely (no TTL) as a permanent audit trail.
 - Bucket is provisioned by the Helm chart via the nack `KeyValue` CRD (`charts/lfx-v2-invite-service/templates/nats-kv-buckets.yaml`).
 - The email key segment uses `base64.RawURLEncoding` (no padding) to keep raw email characters (`@`, `+`) out of the key. Both write and read paths use `encodeEmailForKey` — do not change the encoding without migrating existing keys.
+- **`GetByEmail` scans all bucket keys client-side (O(all-keys)).** The implementation calls `kv.ListKeys` and prefix-filters in memory. Acceptable at current scale; revisit if the bucket grows large.
 
 ### Local development (no Kubernetes)
 
@@ -188,6 +189,8 @@ All reads are centralized in `cmd/invite-api/service/config.go` → `AppConfigFr
 | `OTEL_LOGS_EXPORTER` | `otlp` | OTel log exporter; `none` disables OTel log bridge |
 | `OTEL_SERVICE_NAME` | `lfx-v2-invite-service` | Service name in trace/metric metadata |
 | `OTEL_SERVICE_VERSION` | _(injected from `main.Version` at startup)_ | Auto-set from build version if unset in the environment |
+| `OTEL_TRACES_SAMPLER` | `parentbased_traceidratio` | Trace sampler; supports `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio` |
+| `OTEL_TRACES_SAMPLER_ARG` | `1.0` | Sampling ratio for `traceidratio` / `parentbased_traceidratio` samplers (0.0–1.0) |
 
 ## Conventions
 
@@ -234,7 +237,7 @@ Every `.go` file must start with:
 - **All tests run with `-race`** (`go test -v -race ./...` via `make test`). New tests must be safe under the race detector.
 - **Port mocks** live in `internal/domain/port/mocks/`:
   - `mocks.EmailSender` — satisfies `port.EmailSender`
-  - `mocks.InviteStore` — satisfies `port.InviteStore`; pre-seed with `store.SetRecord(...)` or inject errors
+  - `mocks.InviteStore` — satisfies `port.InviteStore`; inject behavior via `*Func` fields (e.g. `CreateFunc`, `GetByUIDFunc`, `MarkAcceptedFunc`, `DeleteFunc`); inspect calls via `*Calls` slices (e.g. `CreateCalls`, `DeleteCalls`, `MarkAcceptedCalls`)
   - `mocks.EventPublisher` — satisfies `port.EventPublisher`
 - **`noopLinkGenerator`** — test double for `service.LinkGenerator` that returns a fixed invite link without JWT signing. Used in `notification_test.go` as the canonical test pattern; copy this approach for new tests involving `NotificationService`.
 - **`captureLogs`** — redirects `slog.Default()` to a buffer for the test duration; use to assert on structured log output.
