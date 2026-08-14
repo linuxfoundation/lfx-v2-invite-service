@@ -191,6 +191,7 @@ Application config reads are centralized in `cmd/invite-api/service/config.go` �
 | `OTEL_SERVICE_VERSION` | _(injected from `main.Version` at startup)_ | Auto-set from build version if unset in the environment |
 | `OTEL_TRACES_SAMPLER` | `parentbased_traceidratio` | Trace sampler; supports `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio` |
 | `OTEL_TRACES_SAMPLER_ARG` | `1.0` | Sampling ratio for `traceidratio` / `parentbased_traceidratio` samplers (0.0–1.0) |
+| `OTEL_PROPAGATORS` | `tracecontext,baggage` | Comma-separated list of propagator names (W3C TraceContext, Baggage, etc.); consumed by `autoprop.NewTextMapPropagator()` in `otel.go` |
 
 ## Conventions
 
@@ -265,7 +266,7 @@ Every `.go` file must start with:
 <type>(<scope>): <summary> [<ticket>]
 ```
 
-Types: `feat` | `fix` | `refactor` | `docs` | `chore`. Scope is optional but recommended. Ticket reference is required — include `[LFXV2-XXXX]` when a ticket exists.
+Types: `feat` | `fix` | `refactor` | `docs` | `chore`. Scope is optional but recommended. Ticket reference is **optional** — include `[LFXV2-XXXX]` only when a real Jira ID is known from context; never use a placeholder like `[LFXV2-0000]`; omit the brackets entirely when there is no ticket.
 
 Examples:
 ```
