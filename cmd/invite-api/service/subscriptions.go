@@ -64,10 +64,16 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 
 		var resp api.SendInviteResponse
 		if handlerErr != nil {
-			slog.ErrorContext(msgCtx, "send_invite: handler error",
-				"resource_uid", req.ResolvedResourceUID(),
-				"error", handlerErr,
-			)
+			if errors.Is(handlerErr, intsvc.ErrInvalidRequest) {
+				// Client error — log at Warn. The service layer does not log
+				// ErrInvalidRequest so this is the single log point for bad requests.
+				slog.WarnContext(msgCtx, "send_invite: invalid request",
+					"resource_uid", req.ResolvedResourceUID(),
+					"error", handlerErr,
+				)
+			}
+			// All other errors (store failures, email dispatch) are already logged
+			// by the service layer at ErrorContext with full context; do not re-log.
 			resp.Error = sendInviteErrorCode(handlerErr)
 		} else {
 			resp.InviteData = &api.InviteData{
