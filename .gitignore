@@ -17,7 +17,7 @@ coverage/
 go.work
 
 # Build artifacts
-/bin/
+**/bin/
 /dist/
 /build/
 
@@ -50,10 +50,6 @@ logs/
 *.tmp
 *.temp
 tmp/
-
-# One-off utility script binaries built from tmp/
-/audit_accepted_invites
-/fix_group_invites
 
 # Helm local values (copy from values.local.example.yaml)
 charts/lfx-v2-invite-service/values.local.yaml
