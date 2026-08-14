@@ -4,6 +4,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -64,13 +65,13 @@ var reservedClaims = map[string]struct{}{
 //
 // Verifier note: the self-serve web app MUST validate with
 // jwt.WithValidMethods([]string{"HS256"}) to prevent algorithm-confusion attacks.
-func (g *LinkGenerator) Generate(recipientEmail, returnURL, resourceUID, resourceType, role string, expirationDays int, customClaims map[string]string) (link, inviteUID string, expiresAt time.Time, err error) {
+func (g *LinkGenerator) Generate(ctx context.Context, recipientEmail, returnURL, resourceUID, resourceType, role string, expirationDays int, customClaims map[string]string) (link, inviteUID string, expiresAt time.Time, err error) {
 	now := time.Now()
 	inviteUID = uuid.NewString()
 	ttl := tokenTTL
 	if expirationDays > 0 {
 		if expirationDays > maxExpirationDays {
-			slog.Warn("expirationDays exceeds maximum; clamping",
+			slog.WarnContext(ctx, "expirationDays exceeds maximum; clamping",
 				"requested", expirationDays,
 				"max", maxExpirationDays,
 			)
@@ -108,7 +109,7 @@ func (g *LinkGenerator) Generate(recipientEmail, returnURL, resourceUID, resourc
 			return "", "", time.Time{}, fmt.Errorf("%w: value for key %q exceeds max length (%d > %d)", ErrInvalidCustomClaims, k, len(v), maxCustomClaimValueLen)
 		}
 		if _, reserved := reservedClaims[k]; reserved {
-			slog.Warn("custom claim key is reserved and will be ignored", "key", k)
+			slog.WarnContext(ctx, "custom claim key is reserved and will be ignored", "key", k)
 			continue
 		}
 		claims[k] = v

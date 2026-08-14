@@ -31,7 +31,7 @@ var (
 // Returns the full invite URL and the invite UUID (jti) so the service can
 // publish the UUID to resource services via the InviteCreatedEvent.
 type LinkGenerator interface {
-	Generate(recipientEmail, destinationURL, resourceUID, resourceType, role string, expirationDays int, customClaims map[string]string) (link, inviteUID string, expiresAt time.Time, err error)
+	Generate(ctx context.Context, recipientEmail, destinationURL, resourceUID, resourceType, role string, expirationDays int, customClaims map[string]string) (link, inviteUID string, expiresAt time.Time, err error)
 }
 
 // NotificationConfig holds configuration for the NotificationService.
@@ -116,11 +116,16 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	// Generate a signed JWT invite link wrapping the destination URL.
 	// Fail closed: JWT signing failure is a hard error — silently falling back to a
 	// plain URL would deliver an LFX-branded email pointing to an unsigned, unrevokable link.
-	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(canonicalEmail, destURL, resourceUID, req.ResolvedResourceType(), roleStr, req.ExpirationDays, req.CustomClaims)
+	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(ctx, canonicalEmail, destURL, resourceUID, req.ResolvedResourceType(), roleStr, req.ExpirationDays, req.CustomClaims)
 	if linkErr != nil {
 		if errors.Is(linkErr, auth.ErrInvalidCustomClaims) {
 			return SendInviteResult{}, fmt.Errorf("%w: %w", ErrInvalidRequest, linkErr)
 		}
+		slog.ErrorContext(ctx, "generate invite link: signing failure",
+			"resource_uid", resourceUID,
+			"recipient_email", redactEmail(canonicalEmail),
+			"error", linkErr,
+		)
 		return SendInviteResult{}, fmt.Errorf("generate invite link for resource %s: %w", resourceUID, linkErr)
 	}
 

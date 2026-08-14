@@ -4,6 +4,7 @@
 package auth_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -25,7 +26,7 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	role := "Manage"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, inviteUID, expiresAt, err := gen.Generate(recipientEmail, returnURL, resourceUID, resourceType, role, 0, nil)
+	link, inviteUID, expiresAt, err := gen.Generate(context.Background(), recipientEmail, returnURL, resourceUID, resourceType, role, 0, nil)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -109,7 +110,7 @@ func TestLinkGenerator_Generate_Custom_ExpirationDays(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, _, expiresAt, err := gen.Generate("user@example.com", "https://example.com", "res-123", "project", "Manage", 30, nil)
+	link, _, expiresAt, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "project", "Manage", 30, nil)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -147,7 +148,7 @@ func TestLinkGenerator_Generate_WrongSecret(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, _, _, err := gen.Generate("user@example.com", "https://example.com/dest", "res-123", "", "Manage", 0, nil)
+	link, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com/dest", "res-123", "", "Manage", 0, nil)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -166,8 +167,8 @@ func TestLinkGenerator_Generate_UniqueJTI(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	link1, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
-	link2, _, _, _ := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
+	link1, _, _, _ := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
+	link2, _, _, _ := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
 
 	if link1 == link2 {
 		t.Error("two Generate() calls for the same input produced identical links (jti must be unique)")
@@ -178,7 +179,7 @@ func TestLinkGenerator_Generate_EmptyResourceType_ClaimOmitted(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	link, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
+	link, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -208,7 +209,7 @@ func TestLinkGenerator_Generate_CustomClaims_Embedded(t *testing.T) {
 		"committee_invite_uid": "inv-abc123",
 		"tenant_id":            "tenant-xyz",
 	}
-	link, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, customClaims)
+	link, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, customClaims)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -242,7 +243,7 @@ func TestLinkGenerator_Generate_CustomClaims_ReservedKeysIgnored(t *testing.T) {
 		"email":                "attacker@evil.com",
 		"committee_invite_uid": "inv-safe",
 	}
-	link, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, customClaims)
+	link, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, customClaims)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -274,7 +275,7 @@ func TestLinkGenerator_Generate_CustomClaims_SubReserved(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	// sub is an RFC 7519 registered claim and must be reserved.
-	link, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
+	link, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
 		"sub":                  "attacker",
 		"committee_invite_uid": "inv-safe",
 	})
@@ -311,7 +312,7 @@ func TestLinkGenerator_Generate_CustomClaims_TooMany(t *testing.T) {
 	for i := 0; i < 17; i++ {
 		claims[fmt.Sprintf("key%d", i)] = "value"
 	}
-	_, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, claims)
+	_, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, claims)
 	if err == nil {
 		t.Fatal("Generate() expected error for too many custom claims, got nil")
 	}
@@ -325,7 +326,7 @@ func TestLinkGenerator_Generate_CustomClaims_KeyTooLong(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	longKey := strings.Repeat("k", 65)
-	_, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
+	_, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
 		longKey: "value",
 	})
 	if err == nil {
@@ -341,7 +342,7 @@ func TestLinkGenerator_Generate_CustomClaims_ValueTooLong(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	longValue := strings.Repeat("v", 1025)
-	_, _, _, err := gen.Generate("user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
+	_, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
 		"committee_invite_uid": longValue,
 	})
 	if err == nil {

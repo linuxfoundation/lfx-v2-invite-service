@@ -17,7 +17,7 @@ coverage/
 go.work
 
 # Build artifacts
-/bin/
+**/bin/
 /dist/
 /build/
 
@@ -31,6 +31,7 @@ go.work
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
