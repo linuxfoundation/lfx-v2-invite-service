@@ -65,15 +65,16 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 		var resp api.SendInviteResponse
 		if handlerErr != nil {
 			if errors.Is(handlerErr, intsvc.ErrInvalidRequest) {
-				// Client error — log at Warn. The service layer does not log
-				// ErrInvalidRequest so this is the single log point for bad requests.
+				// Client error — log at Warn without the raw error string, which may
+				// contain PII (e.g. an unredacted recipient email from the parse-failure
+				// path). The opaque error code is sufficient for ops triage.
 				slog.WarnContext(msgCtx, "send_invite: invalid request",
 					"resource_uid", req.ResolvedResourceUID(),
-					"error", handlerErr,
+					"error_code", "invalid_request",
 				)
 			}
-			// All other errors (store failures, email dispatch) are already logged
-			// by the service layer at ErrorContext with full context; do not re-log.
+			// All other errors (store failures, email dispatch, JWT signing) are already
+			// logged by the service layer at ErrorContext with full context; do not re-log.
 			resp.Error = sendInviteErrorCode(handlerErr)
 		} else {
 			resp.InviteData = &api.InviteData{

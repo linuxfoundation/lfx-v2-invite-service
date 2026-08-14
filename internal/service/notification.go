@@ -121,6 +121,11 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		if errors.Is(linkErr, auth.ErrInvalidCustomClaims) {
 			return SendInviteResult{}, fmt.Errorf("%w: %w", ErrInvalidRequest, linkErr)
 		}
+		slog.ErrorContext(ctx, "generate invite link: signing failure",
+			"resource_uid", resourceUID,
+			"recipient_email", redactEmail(canonicalEmail),
+			"error", linkErr,
+		)
 		return SendInviteResult{}, fmt.Errorf("generate invite link for resource %s: %w", resourceUID, linkErr)
 	}
 
