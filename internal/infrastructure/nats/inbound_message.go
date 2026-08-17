@@ -5,7 +5,6 @@ package nats
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/nats-io/nats.go"
 )
@@ -21,16 +20,10 @@ func (m *natsMsg) Subject() string { return m.msg.Subject }
 
 // Reply sends a response to the requester. When the message has no reply
 // address (fire-and-forget), it returns nil without sending anything.
-func (m *natsMsg) Reply(ctx context.Context, data []byte) error {
+// Errors are returned to the caller for logging at the point with the most context.
+func (m *natsMsg) Reply(_ context.Context, data []byte) error {
 	if m.msg.Reply == "" {
 		return nil
 	}
-	if err := m.msg.Respond(data); err != nil {
-		slog.ErrorContext(ctx, "natsMsg: failed to send reply",
-			"subject", m.msg.Subject,
-			"error", err,
-		)
-		return err
-	}
-	return nil
+	return m.msg.Respond(data)
 }

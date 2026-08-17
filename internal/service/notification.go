@@ -138,7 +138,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	// Persist the invite record before sending the email. If the store write fails
 	// we return an error immediately — we never send an invite we cannot track.
 	if s.inviteStore != nil {
-		record := buildInviteRecord(inviteUID, req, canonicalEmail, destURL, expiresAt)
+		record := buildInviteRecord(inviteUID, req, canonicalEmail, destURL, roleStr, expiresAt)
 		if storeErr := s.inviteStore.Create(ctx, record); storeErr != nil {
 			slog.ErrorContext(ctx, "invite_store: failed to fully persist invite record (primary may be written, index inconsistent) — aborting send",
 				"invite_uid", inviteUID,
@@ -202,8 +202,8 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 // buildInviteRecord constructs the InviteRecord to persist from the original request
 // plus pre-computed values. canonicalEmail is the output of mail.ParseAddress and is
 // always used for Recipient.Email. destURL is the raw destination URL — never the
-// signed JWT link.
-func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, canonicalEmail, destURL string, expiresAt time.Time) *model.InviteRecord {
+// signed JWT link. role is the normalized (trimmed) role string.
+func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, canonicalEmail, destURL, role string, expiresAt time.Time) *model.InviteRecord {
 	// Build inviter — prefer the structured object, fall back to the resolved scalar.
 	inviterName := req.ResolvedInviterName()
 	var inviter model.Inviter
@@ -248,7 +248,7 @@ func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, canonical
 		Recipient:      recipient,
 		Inviter:        inviter,
 		Resource:       resource,
-		Role:           req.Role,
+		Role:           role,
 		OrgName:        req.OrgName,
 		ReturnURL:      destURL,
 		ExpirationDays: req.ExpirationDays,
