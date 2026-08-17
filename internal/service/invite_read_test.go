@@ -102,15 +102,17 @@ func TestInviteReadService_GetInvite(t *testing.T) {
 
 func TestInviteReadService_GetInvitesByEmail(t *testing.T) {
 	tests := []struct {
-		name      string
-		email     string
-		storeFunc func(_ context.Context, email string) ([]*model.InviteRecord, error)
-		wantLen   int
-		wantErr   bool
+		name          string
+		email         string
+		wantStoreCall string // email the store should receive after canonicalization
+		storeFunc     func(_ context.Context, email string) ([]*model.InviteRecord, error)
+		wantLen       int
+		wantErr       bool
 	}{
 		{
-			name:  "returns all invites for email",
-			email: "alice@example.com",
+			name:          "returns all invites for email",
+			email:         "alice@example.com",
+			wantStoreCall: "alice@example.com",
 			storeFunc: func(_ context.Context, _ string) ([]*model.InviteRecord, error) {
 				return []*model.InviteRecord{
 					sampleRecord("uid-1"),
@@ -120,26 +122,57 @@ func TestInviteReadService_GetInvitesByEmail(t *testing.T) {
 			wantLen: 2,
 		},
 		{
-			name:  "returns empty slice when no invites exist",
-			email: "nobody@example.com",
+			name:          "returns empty slice when no invites exist",
+			email:         "nobody@example.com",
+			wantStoreCall: "nobody@example.com",
 			storeFunc: func(_ context.Context, _ string) ([]*model.InviteRecord, error) {
 				return nil, nil
 			},
 			wantLen: 0,
 		},
 		{
-			name:  "propagates store errors",
-			email: "alice@example.com",
+			name:          "propagates store errors",
+			email:         "alice@example.com",
+			wantStoreCall: "alice@example.com",
 			storeFunc: func(_ context.Context, _ string) ([]*model.InviteRecord, error) {
 				return nil, errors.New("store down")
 			},
 			wantErr: true,
 		},
+		{
+			// Display-name canonicalization now lives at the service layer.
+			name:          "canonicalizes display-name form before store lookup",
+			email:         `"Alice Smith" <alice@example.com>`,
+			wantStoreCall: "alice@example.com",
+			storeFunc: func(_ context.Context, email string) ([]*model.InviteRecord, error) {
+				if email != "alice@example.com" {
+					return nil, errors.New("store received non-canonical email: " + email)
+				}
+				return []*model.InviteRecord{sampleRecord("uid-canon")}, nil
+			},
+			wantLen: 1,
+		},
+		{
+			// If ParseAddress fails, the raw email is forwarded as-is (best-effort).
+			name:          "passes through unparseable email unchanged",
+			email:         "not-a-valid@@address",
+			wantStoreCall: "not-a-valid@@address",
+			storeFunc: func(_ context.Context, _ string) ([]*model.InviteRecord, error) {
+				return []*model.InviteRecord{}, nil
+			},
+			wantLen: 0,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store := &mocks.InviteStore{GetByEmailFunc: tt.storeFunc}
+			var gotStoreEmail string
+			store := &mocks.InviteStore{
+				GetByEmailFunc: func(ctx context.Context, email string) ([]*model.InviteRecord, error) {
+					gotStoreEmail = email
+					return tt.storeFunc(ctx, email)
+				},
+			}
 			svc := NewInviteReadService(store)
 
 			invites, err := svc.GetInvitesByEmail(context.Background(), tt.email)
@@ -154,6 +187,9 @@ func TestInviteReadService_GetInvitesByEmail(t *testing.T) {
 			}
 			if len(invites) != tt.wantLen {
 				t.Errorf("invite count: got %d, want %d", len(invites), tt.wantLen)
+			}
+			if tt.wantStoreCall != "" && gotStoreEmail != tt.wantStoreCall {
+				t.Errorf("store received email %q, want %q", gotStoreEmail, tt.wantStoreCall)
 			}
 		})
 	}

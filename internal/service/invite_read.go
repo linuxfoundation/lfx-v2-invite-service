@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"net/mail"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
@@ -38,8 +39,15 @@ func (s *InviteReadService) GetInvite(ctx context.Context, uid string) (*api.Inv
 }
 
 // GetInvitesByEmail returns all api.Invite records for the given email address.
+// The email is canonicalized via mail.ParseAddress before the store lookup so
+// that display-name forms (e.g. "Alice <alice@example.com>") resolve to the same
+// index key as the stored canonical address. If parsing fails the raw email is
+// used as-is (best-effort, avoids blocking valid bare-address queries on malformed input).
 // Returns an empty non-nil slice when no records exist — never returns an error in that case.
 func (s *InviteReadService) GetInvitesByEmail(ctx context.Context, email string) ([]api.Invite, error) {
+	if addr, err := mail.ParseAddress(email); err == nil {
+		email = addr.Address
+	}
 	records, err := s.inviteStore.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, err
