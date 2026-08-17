@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port/mocks"
-	"github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/auth"
 )
 
 const (
@@ -275,7 +275,7 @@ func TestHandleSendInvite_LinkGeneratorFailure_NoEmailSent(t *testing.T) {
 // "invalid_request" rather than "internal_error".
 func TestHandleSendInvite_CustomClaimsValidationError(t *testing.T) {
 	email := &mocks.EmailSender{}
-	svc := NewNotificationService(email, &errorLinkGenerator{err: auth.ErrInvalidCustomClaims}, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
+	svc := NewNotificationService(email, &errorLinkGenerator{err: port.ErrInvalidCustomClaims}, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
 
 	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
 	if err == nil {

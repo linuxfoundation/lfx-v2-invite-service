@@ -13,6 +13,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/auth"
 )
 
@@ -316,7 +317,7 @@ func TestLinkGenerator_Generate_CustomClaims_TooMany(t *testing.T) {
 	if err == nil {
 		t.Fatal("Generate() expected error for too many custom claims, got nil")
 	}
-	if !errors.Is(err, auth.ErrInvalidCustomClaims) {
+	if !errors.Is(err, port.ErrInvalidCustomClaims) {
 		t.Errorf("expected ErrInvalidCustomClaims, got %v", err)
 	}
 }
@@ -332,7 +333,7 @@ func TestLinkGenerator_Generate_CustomClaims_KeyTooLong(t *testing.T) {
 	if err == nil {
 		t.Fatal("Generate() expected error for oversized key, got nil")
 	}
-	if !errors.Is(err, auth.ErrInvalidCustomClaims) {
+	if !errors.Is(err, port.ErrInvalidCustomClaims) {
 		t.Errorf("expected ErrInvalidCustomClaims, got %v", err)
 	}
 }
@@ -348,7 +349,7 @@ func TestLinkGenerator_Generate_CustomClaims_ValueTooLong(t *testing.T) {
 	if err == nil {
 		t.Fatal("Generate() expected error for oversized value, got nil")
 	}
-	if !errors.Is(err, auth.ErrInvalidCustomClaims) {
+	if !errors.Is(err, port.ErrInvalidCustomClaims) {
 		t.Errorf("expected ErrInvalidCustomClaims, got %v", err)
 	}
 }

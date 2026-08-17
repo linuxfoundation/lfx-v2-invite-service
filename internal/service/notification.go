@@ -15,7 +15,6 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
-	"github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/auth"
 )
 
 // Stable error sentinels exposed to the transport layer so it can map handler
@@ -26,13 +25,6 @@ var (
 	// ErrEmailDispatchFailed is returned when the email service cannot deliver the invite.
 	ErrEmailDispatchFailed = errors.New("email_dispatch_failed")
 )
-
-// LinkGenerator generates a signed invite link for a given recipient and destination.
-// Returns the full invite URL and the invite UUID (jti) so the service can
-// publish the UUID to resource services via the InviteCreatedEvent.
-type LinkGenerator interface {
-	Generate(ctx context.Context, recipientEmail, destinationURL, resourceUID, resourceType, role string, expirationDays int, customClaims map[string]string) (link, inviteUID string, expiresAt time.Time, err error)
-}
 
 // NotificationConfig holds configuration for the NotificationService.
 type NotificationConfig struct {
@@ -52,7 +44,7 @@ type SendInviteResult struct {
 // NotificationService dispatches invite notification emails via the email service.
 type NotificationService struct {
 	emailSender   port.EmailSender
-	linkGenerator LinkGenerator
+	linkGenerator port.LinkGenerator
 	inviteStore   port.InviteStore
 	config        NotificationConfig
 }
@@ -60,7 +52,7 @@ type NotificationService struct {
 // NewNotificationService creates a new NotificationService.
 // inviteStore may be nil in unit tests; production wiring always provides a store
 // and hard-fails startup if the KV bucket cannot be bound.
-func NewNotificationService(email port.EmailSender, linkGen LinkGenerator, store port.InviteStore, cfg NotificationConfig) *NotificationService {
+func NewNotificationService(email port.EmailSender, linkGen port.LinkGenerator, store port.InviteStore, cfg NotificationConfig) *NotificationService {
 	return &NotificationService{
 		emailSender:   email,
 		linkGenerator: linkGen,
@@ -118,7 +110,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	// plain URL would deliver an LFX-branded email pointing to an unsigned, unrevokable link.
 	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(ctx, canonicalEmail, destURL, resourceUID, req.ResolvedResourceType(), roleStr, req.ExpirationDays, req.CustomClaims)
 	if linkErr != nil {
-		if errors.Is(linkErr, auth.ErrInvalidCustomClaims) {
+		if errors.Is(linkErr, port.ErrInvalidCustomClaims) {
 			return SendInviteResult{}, fmt.Errorf("%w: %w", ErrInvalidRequest, linkErr)
 		}
 		slog.ErrorContext(ctx, "generate invite link: signing failure",
