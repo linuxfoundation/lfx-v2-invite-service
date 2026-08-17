@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
 )
 
 // Client wraps the NATS connection and provides infrastructure operations.
@@ -112,21 +114,22 @@ func (c *Client) Publish(ctx context.Context, subject string, data []byte) error
 
 // QueueSubscribe registers a core-NATS queue-group subscriber and returns an
 // unsubscribe function the caller must invoke on shutdown.
-// The handler receives the span context extracted from incoming message headers.
-func (c *Client) QueueSubscribe(subject, queue string, handler func(ctx context.Context, msg *nats.Msg)) (func(), error) {
-	sub, err := c.conn.QueueSubscribe(subject, queue, func(msg *nats.Msg) {
-		msgCtx := otel.GetTextMapPropagator().Extract(context.Background(), natsHeaderCarrier(msg.Header))
+// The handler receives the span context extracted from incoming message headers
+// and a port.InboundMessage wrapper — handlers have no dependency on *nats.Msg.
+func (c *Client) QueueSubscribe(subject, queue string, handler func(ctx context.Context, msg port.InboundMessage)) (func(), error) {
+	sub, err := c.conn.QueueSubscribe(subject, queue, func(raw *nats.Msg) {
+		msgCtx := otel.GetTextMapPropagator().Extract(context.Background(), natsHeaderCarrier(raw.Header))
 		msgCtx, span := tracer.Start(msgCtx, "nats.process",
 			trace.WithSpanKind(trace.SpanKindConsumer),
 			trace.WithAttributes(
 				attribute.String("messaging.system", "nats"),
 				attribute.String("messaging.destination.name", subject),
 				attribute.String("messaging.operation.type", "process"),
-				attribute.Int("messaging.message.body.size", len(msg.Data)),
+				attribute.Int("messaging.message.body.size", len(raw.Data)),
 			),
 		)
 		defer span.End()
-		handler(msgCtx, msg)
+		handler(msgCtx, &natsMsg{msg: raw})
 	})
 	if err != nil {
 		return nil, newServiceUnavailable("failed to subscribe to "+subject, err)
