@@ -68,3 +68,4 @@ debug.test
 # Editor backups
 *.backup
 *.bak
+.claude/worktrees/
