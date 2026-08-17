@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port/mocks"
-	"github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/auth"
 )
 
 const (
@@ -90,14 +90,14 @@ func TestHandleSendInvite_HappyPath(t *testing.T) {
 		t.Fatalf("expected 1 email, got %d", len(email.Calls))
 	}
 	n := email.Calls[0]
-	if n.ResolvedRecipientEmail() != req.ResolvedRecipientEmail() {
-		t.Errorf("recipient email: got %q, want %q", n.ResolvedRecipientEmail(), req.ResolvedRecipientEmail())
+	if n.RecipientEmail != req.ResolvedRecipientEmail() {
+		t.Errorf("recipient email: got %q, want %q", n.RecipientEmail, req.ResolvedRecipientEmail())
 	}
-	if n.ResolvedInviterName() != req.ResolvedInviterName() {
-		t.Errorf("inviter name: got %q, want %q", n.ResolvedInviterName(), req.ResolvedInviterName())
+	if n.InviterName != req.ResolvedInviterName() {
+		t.Errorf("inviter name: got %q, want %q", n.InviterName, req.ResolvedInviterName())
 	}
-	if n.ResolvedResourceName() != req.ResolvedResourceName() {
-		t.Errorf("resource name: got %q, want %q", n.ResolvedResourceName(), req.ResolvedResourceName())
+	if n.ResourceName != req.ResolvedResourceName() {
+		t.Errorf("resource name: got %q, want %q", n.ResourceName, req.ResolvedResourceName())
 	}
 	if n.Role != req.Role {
 		t.Errorf("role: got %q, want %q", n.Role, req.Role)
@@ -122,7 +122,7 @@ func TestHandleSendInvite_MissingRecipientEmail_ReturnsError(t *testing.T) {
 func TestHandleSendInvite_EmailSendError_Propagates(t *testing.T) {
 	sendErr := errors.New("email service unavailable")
 	email := &mocks.EmailSender{
-		SendFunc: func(_ context.Context, _ *model.SendInviteRequest) error {
+		SendFunc: func(_ context.Context, _ model.InviteEmailPayload) error {
 			return sendErr
 		},
 	}
@@ -149,8 +149,8 @@ func TestHandleSendInvite_NoInviter(t *testing.T) {
 	if len(email.Calls) != 1 {
 		t.Fatalf("expected 1 email, got %d", len(email.Calls))
 	}
-	if email.Calls[0].ResolvedInviterName() != "" {
-		t.Errorf("expected empty inviter name, got %q", email.Calls[0].ResolvedInviterName())
+	if email.Calls[0].InviterName != "" {
+		t.Errorf("expected empty inviter name, got %q", email.Calls[0].InviterName)
 	}
 }
 
@@ -198,6 +198,7 @@ func TestHandleSendInvite_TrimmedRole_Normalized(t *testing.T) {
 	if email.Calls[0].Role != "Manage" {
 		t.Errorf("role: got %q, want trimmed %q", email.Calls[0].Role, "Manage")
 	}
+
 }
 
 func TestHandleSendInvite_CustomRole_Accepted(t *testing.T) {
@@ -215,6 +216,7 @@ func TestHandleSendInvite_CustomRole_Accepted(t *testing.T) {
 	if email.Calls[0].Role != "Registrant" {
 		t.Errorf("role: got %q, want %q", email.Calls[0].Role, "Registrant")
 	}
+
 }
 
 func TestHandleSendInvite_ViewRole_Accepted(t *testing.T) {
@@ -232,6 +234,7 @@ func TestHandleSendInvite_ViewRole_Accepted(t *testing.T) {
 	if email.Calls[0].Role != string(model.RoleView) {
 		t.Errorf("role: got %q, want %q", email.Calls[0].Role, model.RoleView)
 	}
+
 }
 
 func TestHandleSendInvite_MemberRole_Accepted(t *testing.T) {
@@ -249,6 +252,7 @@ func TestHandleSendInvite_MemberRole_Accepted(t *testing.T) {
 	if email.Calls[0].Role != string(model.RoleMember) {
 		t.Errorf("role: got %q, want %q", email.Calls[0].Role, model.RoleMember)
 	}
+
 }
 
 // M18.1: a LinkGenerator failure returns an error and never calls SendNotification.
@@ -271,7 +275,7 @@ func TestHandleSendInvite_LinkGeneratorFailure_NoEmailSent(t *testing.T) {
 // "invalid_request" rather than "internal_error".
 func TestHandleSendInvite_CustomClaimsValidationError(t *testing.T) {
 	email := &mocks.EmailSender{}
-	svc := NewNotificationService(email, &errorLinkGenerator{err: auth.ErrInvalidCustomClaims}, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
+	svc := NewNotificationService(email, &errorLinkGenerator{err: port.ErrInvalidCustomClaims}, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
 
 	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
 	if err == nil {
@@ -352,7 +356,7 @@ func TestHandleSendInvite_StoreFailureAbortsSend(t *testing.T) {
 func TestHandleSendInvite_EmailSendError_TriggersDeleteRollback(t *testing.T) {
 	sendErr := errors.New("smtp timeout")
 	email := &mocks.EmailSender{
-		SendFunc: func(_ context.Context, _ *model.SendInviteRequest) error {
+		SendFunc: func(_ context.Context, _ model.InviteEmailPayload) error {
 			return sendErr
 		},
 	}
@@ -420,8 +424,8 @@ func TestHandleSendInvite_StructuredObjectsPreferred(t *testing.T) {
 	}
 }
 
-// M18.2: the ReturnURL passed to SendNotification is the signed link, not the original.
-func TestHandleSendInvite_ReturnURLReplacedWithSignedLink(t *testing.T) {
+// M18.2: the InviteLink in the email payload is the signed link, not the original destination URL.
+func TestHandleSendInvite_InviteLinkIsSignedLink(t *testing.T) {
 	email := &mocks.EmailSender{}
 	svc := newService(email)
 
@@ -433,12 +437,12 @@ func TestHandleSendInvite_ReturnURLReplacedWithSignedLink(t *testing.T) {
 	if len(email.Calls) != 1 {
 		t.Fatalf("expected 1 email, got %d", len(email.Calls))
 	}
-	got := email.Calls[0].ReturnURL
+	got := email.Calls[0].InviteLink
 	if got == originalURL {
-		t.Errorf("ReturnURL was not replaced: still %q (expected a signed invite link)", got)
+		t.Errorf("InviteLink was not replaced: still %q (expected a signed invite link)", got)
 	}
 	if !strings.Contains(got, "/invite?token=") {
-		t.Errorf("ReturnURL %q does not look like a signed invite link", got)
+		t.Errorf("InviteLink %q does not look like a signed invite link", got)
 	}
 }
 
@@ -457,7 +461,7 @@ func (s *spyLinkGenerator) Generate(_ context.Context, recipientEmail, _, _, _, 
 // request are forwarded to the LinkGenerator unchanged.
 func TestHandleSendInvite_CustomClaimsThreaded(t *testing.T) {
 	email := &mocks.EmailSender{
-		SendFunc: func(_ context.Context, _ *model.SendInviteRequest) error { return nil },
+		SendFunc: func(_ context.Context, _ model.InviteEmailPayload) error { return nil },
 	}
 	spy := &spyLinkGenerator{}
 	svc := NewNotificationService(email, spy, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
@@ -489,7 +493,7 @@ func TestHandleSendInvite_EmailSendError_AuditsFailed(t *testing.T) {
 
 	sendErr := errors.New("smtp timeout")
 	email := &mocks.EmailSender{
-		SendFunc: func(_ context.Context, _ *model.SendInviteRequest) error { return sendErr },
+		SendFunc: func(_ context.Context, _ model.InviteEmailPayload) error { return sendErr },
 	}
 	svc := newService(email)
 

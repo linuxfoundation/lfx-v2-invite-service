@@ -15,7 +15,6 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
-	"github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/auth"
 )
 
 // Stable error sentinels exposed to the transport layer so it can map handler
@@ -26,13 +25,6 @@ var (
 	// ErrEmailDispatchFailed is returned when the email service cannot deliver the invite.
 	ErrEmailDispatchFailed = errors.New("email_dispatch_failed")
 )
-
-// LinkGenerator generates a signed invite link for a given recipient and destination.
-// Returns the full invite URL and the invite UUID (jti) so the service can
-// publish the UUID to resource services via the InviteCreatedEvent.
-type LinkGenerator interface {
-	Generate(ctx context.Context, recipientEmail, destinationURL, resourceUID, resourceType, role string, expirationDays int, customClaims map[string]string) (link, inviteUID string, expiresAt time.Time, err error)
-}
 
 // NotificationConfig holds configuration for the NotificationService.
 type NotificationConfig struct {
@@ -52,7 +44,7 @@ type SendInviteResult struct {
 // NotificationService dispatches invite notification emails via the email service.
 type NotificationService struct {
 	emailSender   port.EmailSender
-	linkGenerator LinkGenerator
+	linkGenerator port.LinkGenerator
 	inviteStore   port.InviteStore
 	config        NotificationConfig
 }
@@ -60,7 +52,7 @@ type NotificationService struct {
 // NewNotificationService creates a new NotificationService.
 // inviteStore may be nil in unit tests; production wiring always provides a store
 // and hard-fails startup if the KV bucket cannot be bound.
-func NewNotificationService(email port.EmailSender, linkGen LinkGenerator, store port.InviteStore, cfg NotificationConfig) *NotificationService {
+func NewNotificationService(email port.EmailSender, linkGen port.LinkGenerator, store port.InviteStore, cfg NotificationConfig) *NotificationService {
 	return &NotificationService{
 		emailSender:   email,
 		linkGenerator: linkGen,
@@ -118,7 +110,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	// plain URL would deliver an LFX-branded email pointing to an unsigned, unrevokable link.
 	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(ctx, canonicalEmail, destURL, resourceUID, req.ResolvedResourceType(), roleStr, req.ExpirationDays, req.CustomClaims)
 	if linkErr != nil {
-		if errors.Is(linkErr, auth.ErrInvalidCustomClaims) {
+		if errors.Is(linkErr, port.ErrInvalidCustomClaims) {
 			return SendInviteResult{}, fmt.Errorf("%w: %w", ErrInvalidRequest, linkErr)
 		}
 		slog.ErrorContext(ctx, "generate invite link: signing failure",
@@ -129,34 +121,24 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		return SendInviteResult{}, fmt.Errorf("generate invite link for resource %s: %w", resourceUID, linkErr)
 	}
 
-	// Shallow-copy with canonical and resolved fields so templates and downstream
-	// code see consistent state regardless of whether the caller used the structured
-	// objects or the deprecated scalar fields. The nolint directives below are
-	// intentional: we are populating the deprecated scalars for backward-compat with
-	// infrastructure adapters (email_sender, smtp templates) that still read them.
-	reqCopy := *req
-	reqCopy.Role = roleStr
-	reqCopy.RecipientEmail = canonicalEmail             //nolint:staticcheck
-	reqCopy.RecipientName = req.ResolvedRecipientName() //nolint:staticcheck
-	reqCopy.InviterName = req.ResolvedInviterName()     //nolint:staticcheck
-	reqCopy.ResourceUID = resourceUID                   //nolint:staticcheck
-	reqCopy.ResourceName = req.ResolvedResourceName()   //nolint:staticcheck
-	reqCopy.ResourceType = req.ResolvedResourceType()   //nolint:staticcheck
-	reqCopy.ReturnURL = inviteLink                      // templates need the signed link as the CTA URL
-	// Deep-copy the structured Recipient so that ResolvedRecipientEmail() returns the
-	// canonical address (from mail.ParseAddress) rather than the original display-name
-	// form (e.g. "Alice <alice@example.com>"), which would break the email index.
-	if req.Recipient != nil {
-		rec := *req.Recipient
-		rec.Email = canonicalEmail
-		reqCopy.Recipient = &rec
+	// Build the typed email payload from pre-resolved fields. InviteLink is the signed
+	// JWT URL — distinct from destURL, which is the raw destination stored in KV.
+	emailPayload := model.InviteEmailPayload{
+		RecipientEmail: canonicalEmail,
+		RecipientName:  req.ResolvedRecipientName(),
+		InviterName:    req.ResolvedInviterName(),
+		ResourceName:   req.ResolvedResourceName(),
+		ResourceType:   req.ResolvedResourceType(),
+		ResourceUID:    resourceUID,
+		Role:           roleStr,
+		OrgName:        req.OrgName,
+		InviteLink:     inviteLink,
 	}
-	req = &reqCopy
 
 	// Persist the invite record before sending the email. If the store write fails
 	// we return an error immediately — we never send an invite we cannot track.
 	if s.inviteStore != nil {
-		record := buildInviteRecord(inviteUID, req, destURL, expiresAt)
+		record := buildInviteRecord(inviteUID, req, canonicalEmail, destURL, roleStr, expiresAt)
 		if storeErr := s.inviteStore.Create(ctx, record); storeErr != nil {
 			slog.ErrorContext(ctx, "invite_store: failed to fully persist invite record (primary may be written, index inconsistent) — aborting send",
 				"invite_uid", inviteUID,
@@ -170,7 +152,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 			"invite_uid", inviteUID)
 	}
 
-	if err := s.emailSender.SendNotification(ctx, req); err != nil {
+	if err := s.emailSender.SendNotification(ctx, emailPayload); err != nil {
 		slog.ErrorContext(ctx, "failed to send invite notification",
 			"resource_uid", resourceUID,
 			"recipient_email", redactEmail(canonicalEmail),
@@ -217,10 +199,11 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	}, nil
 }
 
-// buildInviteRecord constructs the InviteRecord to persist from the normalized
-// copy of the request. destURL is the destination URL captured before the JWT
-// link overwrote ReturnURL on the copy — it is never the signed token.
-func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, destURL string, expiresAt time.Time) *model.InviteRecord {
+// buildInviteRecord constructs the InviteRecord to persist from the original request
+// plus pre-computed values. canonicalEmail is the output of mail.ParseAddress and is
+// always used for Recipient.Email. destURL is the raw destination URL — never the
+// signed JWT link. role is the normalized (trimmed) role string.
+func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, canonicalEmail, destURL, role string, expiresAt time.Time) *model.InviteRecord {
 	// Build inviter — prefer the structured object, fall back to the resolved scalar.
 	inviterName := req.ResolvedInviterName()
 	var inviter model.Inviter
@@ -235,22 +218,20 @@ func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, destURL s
 		inviter = model.Inviter{Name: inviterName}
 	}
 
-	// Recipient.Email is always the canonical value from mail.ParseAddress,
-	// captured in the inviteUID / expiresAt generation step above.
+	// Recipient.Email is always the canonical value from mail.ParseAddress.
 	recipientName := req.ResolvedRecipientName()
-	recipientEmail := req.ResolvedRecipientEmail()
 	var recipient model.Recipient
 	if req.Recipient != nil {
 		recipient = model.Recipient{
 			Name:     firstNonEmpty(req.Recipient.Name, recipientName),
-			Email:    recipientEmail, // canonical
+			Email:    canonicalEmail,
 			Username: req.Recipient.Username,
 			Avatar:   req.Recipient.Avatar,
 		}
 	} else {
 		recipient = model.Recipient{
 			Name:  recipientName,
-			Email: recipientEmail,
+			Email: canonicalEmail,
 		}
 	}
 
@@ -267,7 +248,7 @@ func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, destURL s
 		Recipient:      recipient,
 		Inviter:        inviter,
 		Resource:       resource,
-		Role:           req.Role,
+		Role:           role,
 		OrgName:        req.OrgName,
 		ReturnURL:      destURL,
 		ExpirationDays: req.ExpirationDays,

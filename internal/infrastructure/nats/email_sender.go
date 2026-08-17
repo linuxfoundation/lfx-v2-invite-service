@@ -34,12 +34,12 @@ func NewNATSEmailSender(client *Client, subject string) *NATSEmailSender {
 
 // SendNotification renders the invite template and publishes to the email service
 // via NATS request/reply. An empty reply means success.
-func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendInviteRequest) error {
+func (s *NATSEmailSender) SendNotification(ctx context.Context, payload model.InviteEmailPayload) error {
 	envelope := emailapi.SendEmailRequest{
-		To:      req.ResolvedRecipientEmail(),
-		Subject: smtptmpl.InviteEmailSubject(req),
-		HTML:    smtptmpl.RenderInviteHTML(req),
-		Text:    smtptmpl.RenderInvitePlain(req),
+		To:      payload.RecipientEmail,
+		Subject: smtptmpl.InviteEmailSubject(payload),
+		HTML:    smtptmpl.RenderInviteHTML(payload),
+		Text:    smtptmpl.RenderInvitePlain(payload),
 	}
 
 	data, err := json.Marshal(envelope)
@@ -59,8 +59,8 @@ func (s *NATSEmailSender) SendNotification(ctx context.Context, req *model.SendI
 
 	if len(reply) == 0 {
 		slog.DebugContext(ctx, "email service accepted message",
-			"recipient", redactEmail(req.ResolvedRecipientEmail()),
-			"resource_uid", req.ResolvedResourceUID(),
+			"recipient", redactEmail(payload.RecipientEmail),
+			"resource_uid", payload.ResourceUID,
 		)
 		return nil
 	}

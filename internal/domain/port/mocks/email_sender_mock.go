@@ -11,14 +11,14 @@ import (
 
 // EmailSender is a test double for port.EmailSender.
 type EmailSender struct {
-	SendFunc func(ctx context.Context, req *model.SendInviteRequest) error
-	Calls    []*model.SendInviteRequest
+	SendFunc func(ctx context.Context, payload model.InviteEmailPayload) error
+	Calls    []model.InviteEmailPayload
 }
 
-func (m *EmailSender) SendNotification(ctx context.Context, req *model.SendInviteRequest) error {
-	m.Calls = append(m.Calls, req)
+func (m *EmailSender) SendNotification(ctx context.Context, payload model.InviteEmailPayload) error {
+	m.Calls = append(m.Calls, payload)
 	if m.SendFunc != nil {
-		return m.SendFunc(ctx, req)
+		return m.SendFunc(ctx, payload)
 	}
 	return nil
 }

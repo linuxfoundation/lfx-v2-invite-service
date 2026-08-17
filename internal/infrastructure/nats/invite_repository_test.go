@@ -212,27 +212,6 @@ func TestNATSInviteRepository_GetByEmail_PrefixScan(t *testing.T) {
 	}
 }
 
-func TestNATSInviteRepository_GetByEmail_DisplayNameQuery(t *testing.T) {
-	// Verifies that a display-name email query (e.g. "Alice <alice@example.com>") is
-	// canonicalized before key encoding, matching the stored canonical address.
-	repo := newTestRepo(t)
-	ctx := context.Background()
-
-	if err := repo.Create(ctx, sampleRecord("uid-canon", "alice@example.com")); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	// Query with display-name form — write path stored "alice@example.com",
-	// read path must canonicalize before encoding.
-	records, err := repo.GetByEmail(ctx, `"Alice" <alice@example.com>`)
-	if err != nil {
-		t.Fatalf("GetByEmail display-name: %v", err)
-	}
-	if len(records) != 1 {
-		t.Errorf("expected 1 record when querying by display-name email, got %d", len(records))
-	}
-}
-
 func TestNATSInviteRepository_GetByEmail_StaleIndexSkipped(t *testing.T) {
 	// Write index entry without a corresponding primary record; GetByEmail should
 	// skip the stale entry and return an empty slice rather than an error.

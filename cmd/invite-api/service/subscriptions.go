@@ -11,9 +11,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/nats-io/nats.go"
-
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
 	intsvc "github.com/linuxfoundation/lfx-v2-invite-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
@@ -46,14 +45,14 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	}
 
 	// --- send_invite: request/reply from resource services ---
-	stopSend, err := NATSClient.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(ctx context.Context, msg *nats.Msg) {
+	stopSend, err := NATSClient.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, msgHandlerTimeout)
 		defer cancel()
 
 		var req model.SendInviteRequest
-		if err := json.Unmarshal(msg.Data, &req); err != nil {
+		if err := json.Unmarshal(msg.Data(), &req); err != nil {
 			slog.ErrorContext(msgCtx, "send_invite: failed to unmarshal payload",
-				"subject", msg.Subject,
+				"subject", msg.Subject(),
 				"error", err,
 			)
 			replyError(msgCtx, msg, "malformed_request")
@@ -90,7 +89,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			replyError(msgCtx, msg, "internal_error")
 			return
 		}
-		if replyErr := msg.Respond(data); replyErr != nil {
+		if replyErr := msg.Reply(msgCtx, data); replyErr != nil {
 			slog.ErrorContext(msgCtx, "send_invite: failed to send reply", "error", replyErr)
 			return
 		}
@@ -107,14 +106,14 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "send-invite")
 
 	// --- invite.accepted: fire-and-forget event from self-serve web app ---
-	stopAccepted, err := NATSClient.QueueSubscribe(api.InviteAcceptedSubject, acceptanceQueueGroup, func(ctx context.Context, msg *nats.Msg) {
+	stopAccepted, err := NATSClient.QueueSubscribe(api.InviteAcceptedSubject, acceptanceQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
 		var evt api.InviteAcceptedEvent
-		if err := json.Unmarshal(msg.Data, &evt); err != nil {
+		if err := json.Unmarshal(msg.Data(), &evt); err != nil {
 			slog.WarnContext(msgCtx, "invite_accepted: failed to unmarshal payload",
-				"subject", msg.Subject,
+				"subject", msg.Subject(),
 				"error", err,
 			)
 			// No reply expected — fire-and-forget. Discard malformed messages.
@@ -131,12 +130,12 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "invite-accepted")
 
 	// --- get_invite: request/reply — fetch invite record by UID ---
-	stopGetInvite, err := NATSClient.QueueSubscribe(api.GetInviteSubject, getInviteQueueGroup, func(ctx context.Context, msg *nats.Msg) {
+	stopGetInvite, err := NATSClient.QueueSubscribe(api.GetInviteSubject, getInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
 		var req api.GetInviteRequest
-		if err := json.Unmarshal(msg.Data, &req); err != nil {
+		if err := json.Unmarshal(msg.Data(), &req); err != nil {
 			slog.ErrorContext(msgCtx, "get_invite: failed to unmarshal payload", "error", err)
 			replyGetInviteError(msgCtx, msg, "malformed_request")
 			return
@@ -166,7 +165,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			replyGetInviteError(msgCtx, msg, "internal_error")
 			return
 		}
-		if replyErr := msg.Respond(data); replyErr != nil {
+		if replyErr := msg.Reply(msgCtx, data); replyErr != nil {
 			slog.ErrorContext(msgCtx, "get_invite: failed to send reply", "error", replyErr)
 		}
 	})
@@ -178,12 +177,12 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "get-invite")
 
 	// --- get_invites_by_email: request/reply — fetch invite records by email ---
-	stopGetByEmail, err := NATSClient.QueueSubscribe(api.GetInvitesByEmailSubject, getByEmailQueueGroup, func(ctx context.Context, msg *nats.Msg) {
+	stopGetByEmail, err := NATSClient.QueueSubscribe(api.GetInvitesByEmailSubject, getByEmailQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
 		var req api.GetInvitesByEmailRequest
-		if err := json.Unmarshal(msg.Data, &req); err != nil {
+		if err := json.Unmarshal(msg.Data(), &req); err != nil {
 			slog.ErrorContext(msgCtx, "get_invites_by_email: failed to unmarshal payload", "error", err)
 			replyGetByEmailError(msgCtx, msg, "malformed_request")
 			return
@@ -207,7 +206,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			replyGetByEmailError(msgCtx, msg, "internal_error")
 			return
 		}
-		if replyErr := msg.Respond(data); replyErr != nil {
+		if replyErr := msg.Reply(msgCtx, data); replyErr != nil {
 			slog.ErrorContext(msgCtx, "get_invites_by_email: failed to send reply", "error", replyErr)
 		}
 	})
@@ -235,34 +234,25 @@ func sendInviteErrorCode(err error) string {
 }
 
 // replyError sends a SendInviteResponse with only the Error field set.
-func replyError(ctx context.Context, msg *nats.Msg, errCode string) {
-	if msg.Reply == "" {
-		return
-	}
+func replyError(ctx context.Context, msg port.InboundMessage, errCode string) {
 	data, _ := json.Marshal(api.SendInviteResponse{Error: errCode})
-	if err := msg.Respond(data); err != nil {
+	if err := msg.Reply(ctx, data); err != nil {
 		slog.ErrorContext(ctx, "send_invite: failed to send error reply", "error", err)
 	}
 }
 
 // replyGetInviteError sends a GetInviteResponse with only the Error field set.
-func replyGetInviteError(ctx context.Context, msg *nats.Msg, errCode string) {
-	if msg.Reply == "" {
-		return
-	}
+func replyGetInviteError(ctx context.Context, msg port.InboundMessage, errCode string) {
 	data, _ := json.Marshal(api.GetInviteResponse{Error: errCode})
-	if err := msg.Respond(data); err != nil {
+	if err := msg.Reply(ctx, data); err != nil {
 		slog.ErrorContext(ctx, "get_invite: failed to send error reply", "error", err)
 	}
 }
 
 // replyGetByEmailError sends a GetInvitesByEmailResponse with the Error field set.
-func replyGetByEmailError(ctx context.Context, msg *nats.Msg, errCode string) {
-	if msg.Reply == "" {
-		return
-	}
+func replyGetByEmailError(ctx context.Context, msg port.InboundMessage, errCode string) {
 	data, _ := json.Marshal(api.GetInvitesByEmailResponse{Error: errCode})
-	if err := msg.Respond(data); err != nil {
+	if err := msg.Reply(ctx, data); err != nil {
 		slog.ErrorContext(ctx, "get_invites_by_email: failed to send error reply", "error", err)
 	}
 }

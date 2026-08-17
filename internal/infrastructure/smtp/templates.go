@@ -29,7 +29,7 @@ var (
 	plainTmpl   = texttmpl.Must(texttmpl.New("invite-text").Parse(plainTmplSrc))
 )
 
-// inviteEmailData is the template execution context built from a SendInviteRequest.
+// inviteEmailData is the template execution context.
 type inviteEmailData struct {
 	RecipientFirstName string
 	InviterFirstName   string
@@ -42,23 +42,21 @@ type inviteEmailData struct {
 	HasInviter         bool
 }
 
-func buildTemplateData(req *model.SendInviteRequest) inviteEmailData {
-	orgName := req.OrgName
+func buildTemplateData(payload model.InviteEmailPayload) inviteEmailData {
+	orgName := payload.OrgName
 	if orgName == "" {
 		orgName = "LFX"
 	}
-	resourceType := req.ResolvedResourceType()
-	inviterName := req.ResolvedInviterName()
 	return inviteEmailData{
-		RecipientFirstName: firstName(req.ResolvedRecipientName()),
-		InviterFirstName:   firstName(inviterName),
-		InviterFullName:    inviterName,
-		ResourceName:       req.ResolvedResourceName(),
-		ResourceType:       resourceType,
-		Role:               req.Role,
-		ReturnURL:          req.ReturnURL,
+		RecipientFirstName: firstName(payload.RecipientName),
+		InviterFirstName:   firstName(payload.InviterName),
+		InviterFullName:    payload.InviterName,
+		ResourceName:       payload.ResourceName,
+		ResourceType:       payload.ResourceType,
+		Role:               payload.Role,
+		ReturnURL:          payload.InviteLink,
 		OrgName:            orgName,
-		HasInviter:         inviterName != "",
+		HasInviter:         payload.InviterName != "",
 	}
 }
 
@@ -116,9 +114,9 @@ func fallbackInvitePlain(data inviteEmailData) string {
 		sanitizeSingleLine(data.ResourceName), suffix, sanitizeSingleLine(data.ReturnURL))
 }
 
-// InviteEmailSubject renders the email subject line for an invite request.
-func InviteEmailSubject(req *model.SendInviteRequest) string {
-	data := buildTemplateData(req)
+// InviteEmailSubject renders the email subject line for an invite.
+func InviteEmailSubject(payload model.InviteEmailPayload) string {
+	data := buildTemplateData(payload)
 	var buf bytes.Buffer
 	if err := subjectTmpl.Execute(&buf, data); err != nil {
 		return fallbackInviteSubject(data)
@@ -127,8 +125,8 @@ func InviteEmailSubject(req *model.SendInviteRequest) string {
 }
 
 // RenderInviteHTML renders the HTML body for an invite notification.
-func RenderInviteHTML(req *model.SendInviteRequest) string {
-	data := buildTemplateData(req)
+func RenderInviteHTML(payload model.InviteEmailPayload) string {
+	data := buildTemplateData(payload)
 	var buf bytes.Buffer
 	if err := htmlTmpl.Execute(&buf, data); err != nil {
 		return fallbackInviteHTML(data)
@@ -137,8 +135,8 @@ func RenderInviteHTML(req *model.SendInviteRequest) string {
 }
 
 // RenderInvitePlain renders the plain-text body for an invite notification.
-func RenderInvitePlain(req *model.SendInviteRequest) string {
-	data := buildTemplateData(req)
+func RenderInvitePlain(payload model.InviteEmailPayload) string {
+	data := buildTemplateData(payload)
 	var buf bytes.Buffer
 	if err := plainTmpl.Execute(&buf, data); err != nil {
 		return fallbackInvitePlain(data)

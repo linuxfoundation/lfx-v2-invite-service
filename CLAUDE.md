@@ -23,8 +23,8 @@ cmd/invite-api/
     └── subscriptions.go        # NATS subscriber registration (one QueueSubscribe per subject)
 
 internal/domain/
-├── model/                      # Pure data: SendInviteRequest (+ Resolved* helpers), InviteRecord, Inviter, Recipient, etc.
-└── port/                       # Interfaces: EmailSender, InviteStore, EventPublisher; error sentinels; mocks/
+├── model/                      # Pure data: SendInviteRequest (+ Resolved* helpers), InviteEmailPayload, InviteRecord, Inviter, Recipient, etc.
+└── port/                       # Interfaces: EmailSender, InviteStore, EventPublisher, LinkGenerator, InboundMessage; error sentinels; mocks/
 
 internal/service/
 ├── notification.go             # HandleSendInvite — validates, generates JWT link, persists, sends; ErrInvalidRequest, ErrEmailDispatchFailed
@@ -33,10 +33,11 @@ internal/service/
 
 internal/infrastructure/
 ├── auth/
-│   └── generator.go            # LinkGenerator — HS256 JWT invite links; 30-day default, 90-day max
+│   └── generator.go            # auth.LinkGenerator adapter — satisfies port.LinkGenerator; HS256 JWT invite links; 30-day default, 90-day max
 ├── nats/
 │   ├── client.go               # NATS connection; QueueSubscribe (auto OTel trace propagation); Request/Publish; KeyValue bind; ConsumeWithJetStream
-│   ├── email_sender.go         # NATSEmailSender — renders template, forwards to email service via NATS
+│   ├── email_sender.go         # NATSEmailSender — renders template from InviteEmailPayload, forwards to email service via NATS
+│   ├── inbound_message.go      # natsMsg adapter — wraps *nats.Msg to satisfy port.InboundMessage
 │   ├── invite_repository.go    # NATSInviteRepository — KV-backed InviteStore; email index base64url-encoded
 │   ├── tracing.go              # natsHeaderCarrier — adapts nats.Header to OTel TextMapCarrier
 │   └── errors.go               # Unexported newServiceUnavailable / newUnexpected error constructors
@@ -44,7 +45,7 @@ internal/infrastructure/
 │   ├── log.go                  # slog + OTel handler init; InitStructureLogConfig
 │   └── otel.go                 # OTel SDK bootstrap (traces, metrics, logs via autoexport)
 └── smtp/
-    ├── templates.go            # InviteEmailSubject / RenderInviteHTML / RenderInvitePlain
+    ├── templates.go            # InviteEmailSubject / RenderInviteHTML / RenderInvitePlain — all take model.InviteEmailPayload
     └── templates/              # Embedded: invite_body.gohtml, invite_subject.gotemplate, invite_text.gotemplate
 
 pkg/
@@ -59,9 +60,13 @@ pkg/
 - **`pkg/constants` was removed; do not recreate it.** The package was deleted in commit `dbc1d6a` in favor of `pkg/api`. `pkg/api` is the sole public-contract package. Do not add a `pkg/constants` package; always use `pkg/api` as the source of truth.
 - **Persist before send; rollback on failure.** `HandleSendInvite` writes the invite record to KV before calling the email service. If the email dispatch fails, it attempts a best-effort KV delete to avoid phantom invites.
 - **JWT signed invite links are never stored.** The KV record stores the *destination URL*, not the signed token. The token is generated on the fly and included in the email body only.
+- **`EmailSender` receives a typed `InviteEmailPayload`, not the raw request.** Before crossing the `EmailSender` seam, `HandleSendInvite` builds a `model.InviteEmailPayload` with all fields pre-resolved: `InviteLink` is always the signed JWT CTA URL, names are resolved, and `Role` is the already-trimmed value. Adapters (`NATSEmailSender`, smtp templates) consume `InviteEmailPayload` directly — they must not call `Resolved*()` helpers or read `SendInviteRequest` fields.
+- **All port interfaces live in `internal/domain/port`.** `EmailSender`, `InviteStore`, `EventPublisher`, `LinkGenerator`, and `InboundMessage` are all defined in the `port` package. Error sentinels that cross seams (e.g. `ErrInvalidCustomClaims`, `ErrInviteNotFound`, `ErrAlreadyAccepted`) also live here. The service layer imports only `port` and `model` — it has no direct dependency on any `internal/infrastructure` package.
+- **Subscription handlers depend on `port.InboundMessage`, not `*nats.Msg`.** `Client.QueueSubscribe` wraps every incoming `*nats.Msg` in a private `natsMsg` adapter before calling the handler. Handlers call `msg.Data()`, `msg.Subject()`, and `msg.Reply(ctx, data)` — they never import `github.com/nats-io/nats.go`. Fire-and-forget messages (no reply address) are handled transparently by the adapter, which returns nil from `Reply` without publishing.
+- **Email canonicalization is the service layer's responsibility.** The repository stores and looks up emails exactly as given. `HandleSendInvite` canonicalizes via `mail.ParseAddress` before building the `InviteRecord` and the `InviteEmailPayload`. `InviteReadService.GetInvitesByEmail` canonicalizes via `mail.ParseAddress` (best-effort, falls through on parse failure) before calling the store. Do not add email canonicalization in `NATSInviteRepository`.
 - **Email index uses base64url encoding.** Raw email addresses contain characters (`@`, `+`) that are not valid NATS KV key segments. The repository encodes emails with `base64.RawURLEncoding` before using them as key prefixes. Both read and write paths use the same encoding so prefix scans stay correct.
 - **Optimistic concurrency on `MarkAccepted`.** The repository retries `kv.Update` up to 3 times on revision mismatch before failing. `ErrAlreadyAccepted` is returned when the record is already in the accepted state so callers can skip duplicate side-effects (e.g. avoid re-publishing `InviteServiceAcceptedEvent`).
-- **Handlers always respond.** Every request/reply handler calls `msg.Respond` on every path (success or error) so callers' `RequestWithContext` never hangs.
+- **Handlers always respond.** Every request/reply handler calls `msg.Reply` on every path (success or error) so callers' `RequestWithContext` never hangs.
 - **30-second handler timeout for send_invite; 10 seconds for KV read/write handlers.** These constants are defined in `cmd/invite-api/service/subscriptions.go`.
 
 ## Development Workflow
@@ -203,7 +208,7 @@ All `os.Getenv` calls belong in `cmd/invite-api/service/config.go` → `AppConfi
 
 1. Add the subject constant and any new payload types to `pkg/api/invite.go`.
 2. Add the handler method to the relevant service in `internal/service/`.
-3. Add a queue-subscribe block in `cmd/invite-api/service/subscriptions.go` and append the stop func. OTel trace context extraction is handled automatically by `Client.QueueSubscribe` — handlers just use the `ctx` they receive.
+3. Add a queue-subscribe block in `cmd/invite-api/service/subscriptions.go` and append the stop func. OTel trace context extraction is handled automatically by `Client.QueueSubscribe` — handlers receive a `ctx` with the span and a `port.InboundMessage` (not `*nats.Msg`). Use `msg.Data()` to read the payload and `msg.Reply(ctx, data)` to send the response.
 4. Wire any new infrastructure (e.g. a new KV binding) in `cmd/invite-api/service/implementations.go`.
 
 For a **JetStream durable consumer** (ACK/NAK semantics), use `Client.ConsumeWithJetStream` instead of `QueueSubscribe`. Messages are ACKed on handler success and NAKed on handler error; configure `ConsumerConfig.MaxDeliver` and `AckWait` to control redelivery.
@@ -211,7 +216,7 @@ For a **JetStream durable consumer** (ACK/NAK semantics), use `Client.ConsumeWit
 ### Error handling
 
 - Infrastructure errors → unexported `newServiceUnavailable` / `newUnexpected` in `internal/infrastructure/nats/errors.go`.
-- Service-layer sentinels: `ErrInvalidRequest`, `ErrEmailDispatchFailed` (in `notification.go`); `ErrInviteNotFound`, `ErrAlreadyAccepted` (in `port/invite_store.go`).
+- Service-layer sentinels: `ErrInvalidRequest`, `ErrEmailDispatchFailed` (in `notification.go`); `ErrInviteNotFound`, `ErrAlreadyAccepted` (in `port/invite_store.go`); `ErrInvalidCustomClaims` (in `port/link_generator.go`).
 - Return errors up; log at the point where you have the most context.
 - Malformed NATS payloads: reply with error code and discard — they will never parse successfully on retry.
 - Callers receive opaque error codes only (e.g. `"invalid_request"`, `"internal_error"`); full details are logged server-side.
@@ -237,10 +242,10 @@ Every `.go` file must start with:
 - **Table-driven tests** in `_test.go` files co-located with the source.
 - **All tests run with `-race`** (`go test -v -race ./...` via `make test`). New tests must be safe under the race detector.
 - **Port mocks** live in `internal/domain/port/mocks/`:
-  - `mocks.EmailSender` — satisfies `port.EmailSender`
+  - `mocks.EmailSender` — satisfies `port.EmailSender`; `SendFunc func(ctx, payload model.InviteEmailPayload) error`; inspect calls via `Calls []model.InviteEmailPayload`
   - `mocks.InviteStore` — satisfies `port.InviteStore`; inject behavior via `*Func` fields (e.g. `CreateFunc`, `GetByUIDFunc`, `MarkAcceptedFunc`, `DeleteFunc`); inspect calls via `*Calls` slices (e.g. `CreateCalls`, `DeleteCalls`, `MarkAcceptedCalls`)
   - `mocks.EventPublisher` — satisfies `port.EventPublisher`
-- **`noopLinkGenerator`** — test double for `service.LinkGenerator` that returns a fixed invite link without JWT signing. Used in `notification_test.go` as the canonical test pattern; copy this approach for new tests involving `NotificationService`.
+- **`noopLinkGenerator`** — test double for `port.LinkGenerator` that returns a fixed invite link without JWT signing. Used in `notification_test.go` as the canonical test pattern; copy this approach for new tests involving `NotificationService`.
 - **`captureLogs`** — redirects `slog.Default()` to a buffer for the test duration; use to assert on structured log output.
 - Do not embed a real NATS server in unit tests. Use the port mocks instead.
 

@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/mail"
 	"strings"
 	"time"
 
@@ -96,18 +95,13 @@ func (r *NATSInviteRepository) GetByUID(ctx context.Context, uid string) (*model
 	return &record, nil
 }
 
-// GetByEmail retrieves all invite records for the given email address (case-insensitive).
-// The query email is canonicalized via mail.ParseAddress so that a display-name form such
-// as "Alice <alice@example.com>" resolves to the same index key as the stored "alice@example.com".
+// GetByEmail retrieves all invite records for the given email address.
+// The email must already be in canonical form (bare address, no display name) —
+// canonicalization via mail.ParseAddress is the caller's responsibility and must
+// happen in the service layer before this method is invoked.
 // Returns an empty slice when no matching records exist.
 func (r *NATSInviteRepository) GetByEmail(ctx context.Context, email string) ([]*model.InviteRecord, error) {
-	// Mirror the write path: canonicalize via mail.ParseAddress so display-name queries
-	// (e.g. "Alice <alice@example.com>") resolve to the same key as the stored address.
-	queryEmail := email
-	if addr, parseErr := mail.ParseAddress(email); parseErr == nil {
-		queryEmail = addr.Address
-	}
-	encoded := encodeEmailForKey(queryEmail)
+	encoded := encodeEmailForKey(email)
 	prefix := emailIndexPrefix + encoded + "/"
 
 	keys, err := r.kv.ListKeys(ctx)
