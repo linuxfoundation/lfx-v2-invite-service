@@ -35,7 +35,7 @@
     </div>
     <hr>
 
-    <p class="greeting">Hi {{.RecipientFirstName}},</p>
+    <p class="greeting">Hi{{if .RecipientFirstName}} {{.RecipientFirstName}}{{end}},</p>
 
     {{if .HasInviter}}
     <p><strong>{{.InviterFullName}}</strong> has invited you to join the <strong>{{.ResourceName}}</strong>{{if .ResourceType}} {{.ResourceType}}{{end}} on LFX with the <strong>{{.Role}}</strong> role.</p>

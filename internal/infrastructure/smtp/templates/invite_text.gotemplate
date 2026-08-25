@@ -1,4 +1,4 @@
-Hi {{.RecipientFirstName}},
+Hi{{if .RecipientFirstName}} {{.RecipientFirstName}}{{end}},
 
 {{if .HasInviter}}{{.InviterFullName}} invited you to join the {{.ResourceName}}{{if .ResourceType}} {{.ResourceType}}{{end}} on LFX with the {{.Role}} role.{{else}}You have been invited to join the {{.ResourceName}}{{if .ResourceType}} {{.ResourceType}}{{end}} on LFX with the {{.Role}} role.{{end}}
 

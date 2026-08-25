@@ -211,6 +211,30 @@ func TestRenderInvitePlain_DefaultsOrgNameToLFX(t *testing.T) {
 	}
 }
 
+func TestRenderInviteHTML_EmptyRecipientName_GreetingHasNoTrailingSpace(t *testing.T) {
+	p := basePayload()
+	p.RecipientName = ""
+	out := RenderInviteHTML(p)
+	if strings.Contains(out, "Hi ,") {
+		t.Error("HTML greeting should be 'Hi,' not 'Hi ,' when recipient name is empty")
+	}
+	if !strings.Contains(out, "Hi,") {
+		t.Errorf("HTML should contain 'Hi,' greeting when recipient name is empty, got:\n%s", out)
+	}
+}
+
+func TestRenderInvitePlain_EmptyRecipientName_GreetingHasNoTrailingSpace(t *testing.T) {
+	p := basePayload()
+	p.RecipientName = ""
+	out := RenderInvitePlain(p)
+	if strings.Contains(out, "Hi ,") {
+		t.Error("plain text greeting should be 'Hi,' not 'Hi ,' when recipient name is empty")
+	}
+	if !strings.Contains(out, "Hi,") {
+		t.Errorf("plain text should contain 'Hi,' greeting when recipient name is empty, got:\n%s", out)
+	}
+}
+
 func TestRenderInvitePlain_ContainsSteps(t *testing.T) {
 	p := basePayload()
 	out := RenderInvitePlain(p)
