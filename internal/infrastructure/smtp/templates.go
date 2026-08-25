@@ -114,32 +114,43 @@ func fallbackInvitePlain(data inviteEmailData) string {
 		sanitizeSingleLine(data.ResourceName), suffix, sanitizeSingleLine(data.ReturnURL))
 }
 
-// InviteEmailSubject renders the email subject line for an invite.
-func InviteEmailSubject(payload model.InviteEmailPayload) string {
-	data := buildTemplateData(payload)
-	var buf bytes.Buffer
-	if err := subjectTmpl.Execute(&buf, data); err != nil {
-		return fallbackInviteSubject(data)
-	}
-	return sanitizeSingleLine(buf.String())
+// RenderedInviteEmail holds the rendered subject, HTML body, and plain-text
+// body for an invite notification email.
+type RenderedInviteEmail struct {
+	Subject string
+	HTML    string
+	Plain   string
 }
 
-// RenderInviteHTML renders the HTML body for an invite notification.
-func RenderInviteHTML(payload model.InviteEmailPayload) string {
+// RenderInviteEmail renders all three parts of an invite email in a single
+// call. buildTemplateData is invoked once, keeping the rendering cohesive and
+// the caller interface small.
+func RenderInviteEmail(payload model.InviteEmailPayload) RenderedInviteEmail {
 	data := buildTemplateData(payload)
-	var buf bytes.Buffer
-	if err := htmlTmpl.Execute(&buf, data); err != nil {
-		return fallbackInviteHTML(data)
-	}
-	return buf.String()
-}
 
-// RenderInvitePlain renders the plain-text body for an invite notification.
-func RenderInvitePlain(payload model.InviteEmailPayload) string {
-	data := buildTemplateData(payload)
-	var buf bytes.Buffer
-	if err := plainTmpl.Execute(&buf, data); err != nil {
-		return fallbackInvitePlain(data)
-	}
-	return buf.String()
+	var subjectBuf bytes.Buffer
+	subject := func() string {
+		if err := subjectTmpl.Execute(&subjectBuf, data); err != nil {
+			return fallbackInviteSubject(data)
+		}
+		return sanitizeSingleLine(subjectBuf.String())
+	}()
+
+	var htmlBuf bytes.Buffer
+	html := func() string {
+		if err := htmlTmpl.Execute(&htmlBuf, data); err != nil {
+			return fallbackInviteHTML(data)
+		}
+		return htmlBuf.String()
+	}()
+
+	var plainBuf bytes.Buffer
+	plain := func() string {
+		if err := plainTmpl.Execute(&plainBuf, data); err != nil {
+			return fallbackInvitePlain(data)
+		}
+		return plainBuf.String()
+	}()
+
+	return RenderedInviteEmail{Subject: subject, HTML: html, Plain: plain}
 }

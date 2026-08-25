@@ -24,11 +24,11 @@ func basePayload() model.InviteEmailPayload {
 	}
 }
 
-// --- InviteEmailSubject ---
+// --- Subject ---
 
-func TestInviteEmailSubject_WithInviter(t *testing.T) {
+func TestRenderInviteEmail_Subject_WithInviter(t *testing.T) {
 	p := basePayload()
-	subject := InviteEmailSubject(p)
+	subject := RenderInviteEmail(p).Subject
 	if !strings.Contains(subject, "Bob") {
 		t.Errorf("subject missing inviter first name, got %q", subject)
 	}
@@ -37,10 +37,10 @@ func TestInviteEmailSubject_WithInviter(t *testing.T) {
 	}
 }
 
-func TestInviteEmailSubject_WithoutInviter(t *testing.T) {
+func TestRenderInviteEmail_Subject_WithoutInviter(t *testing.T) {
 	p := basePayload()
 	p.InviterName = ""
-	subject := InviteEmailSubject(p)
+	subject := RenderInviteEmail(p).Subject
 	if strings.Contains(subject, "Bob") {
 		t.Errorf("subject should not contain inviter name when absent, got %q", subject)
 	}
@@ -49,19 +49,19 @@ func TestInviteEmailSubject_WithoutInviter(t *testing.T) {
 	}
 }
 
-func TestInviteEmailSubject_UsesFirstNameOnly(t *testing.T) {
+func TestRenderInviteEmail_Subject_UsesFirstNameOnly(t *testing.T) {
 	p := basePayload()
-	subject := InviteEmailSubject(p)
+	subject := RenderInviteEmail(p).Subject
 	if strings.Contains(subject, "Jones") {
 		t.Errorf("subject should use first name only, not full name; got %q", subject)
 	}
 }
 
-// --- RenderInviteHTML ---
+// --- HTML body ---
 
-func TestRenderInviteHTML_ContainsRecipientFirstName(t *testing.T) {
+func TestRenderInviteEmail_HTML_ContainsRecipientFirstName(t *testing.T) {
 	p := basePayload()
-	out := RenderInviteHTML(p)
+	out := RenderInviteEmail(p).HTML
 	if !strings.Contains(out, "Alice") {
 		t.Errorf("HTML missing recipient first name, got output length %d", len(out))
 	}
@@ -70,51 +70,51 @@ func TestRenderInviteHTML_ContainsRecipientFirstName(t *testing.T) {
 	}
 }
 
-func TestRenderInviteHTML_ContainsInviterFullName(t *testing.T) {
+func TestRenderInviteEmail_HTML_ContainsInviterFullName(t *testing.T) {
 	p := basePayload()
-	out := RenderInviteHTML(p)
+	out := RenderInviteEmail(p).HTML
 	if !strings.Contains(out, "Bob Jones") {
 		t.Errorf("HTML missing inviter full name %q", "Bob Jones")
 	}
 }
 
-func TestRenderInviteHTML_ContainsResourceName(t *testing.T) {
+func TestRenderInviteEmail_HTML_ContainsResourceName(t *testing.T) {
 	p := basePayload()
-	out := RenderInviteHTML(p)
+	out := RenderInviteEmail(p).HTML
 	if !strings.Contains(out, p.ResourceName) {
 		t.Errorf("HTML missing resource name %q", p.ResourceName)
 	}
 }
 
-func TestRenderInviteHTML_ContainsDeepLink(t *testing.T) {
+func TestRenderInviteEmail_HTML_ContainsDeepLink(t *testing.T) {
 	p := basePayload()
-	out := RenderInviteHTML(p)
+	out := RenderInviteEmail(p).HTML
 	if !strings.Contains(out, p.InviteLink) {
 		t.Errorf("HTML missing invite link %q", p.InviteLink)
 	}
 }
 
-func TestRenderInviteHTML_ContainsOrgName(t *testing.T) {
+func TestRenderInviteEmail_HTML_ContainsOrgName(t *testing.T) {
 	p := basePayload()
-	out := RenderInviteHTML(p)
+	out := RenderInviteEmail(p).HTML
 	if !strings.Contains(out, "Linux Foundation") {
 		t.Error("HTML missing org name in signature")
 	}
 }
 
-func TestRenderInviteHTML_DefaultsOrgNameToLFX(t *testing.T) {
+func TestRenderInviteEmail_HTML_DefaultsOrgNameToLFX(t *testing.T) {
 	p := basePayload()
 	p.OrgName = ""
-	out := RenderInviteHTML(p)
+	out := RenderInviteEmail(p).HTML
 	if !strings.Contains(out, "The LFX Team") {
 		t.Error("HTML should fall back to 'The LFX Team' when OrgName is empty")
 	}
 }
 
-func TestRenderInviteHTML_WithoutInviter(t *testing.T) {
+func TestRenderInviteEmail_HTML_WithoutInviter(t *testing.T) {
 	p := basePayload()
 	p.InviterName = ""
-	out := RenderInviteHTML(p)
+	out := RenderInviteEmail(p).HTML
 	if strings.Contains(out, "Bob") {
 		t.Error("HTML should not contain inviter name when absent")
 	}
@@ -123,98 +123,27 @@ func TestRenderInviteHTML_WithoutInviter(t *testing.T) {
 	}
 }
 
-func TestRenderInviteHTML_ContainsCTA(t *testing.T) {
+func TestRenderInviteEmail_HTML_ContainsCTA(t *testing.T) {
 	p := basePayload()
-	out := RenderInviteHTML(p)
+	out := RenderInviteEmail(p).HTML
 	if !strings.Contains(out, "Accept invitation") {
 		t.Error("HTML missing CTA button text")
 	}
 }
 
-func TestRenderInviteHTML_EscapesSpecialCharacters(t *testing.T) {
+func TestRenderInviteEmail_HTML_EscapesSpecialCharacters(t *testing.T) {
 	p := basePayload()
 	p.ResourceName = "<script>alert('xss')</script>"
-	out := RenderInviteHTML(p)
+	out := RenderInviteEmail(p).HTML
 	if strings.Contains(out, "<script>") {
 		t.Error("HTML must escape resource name containing script tags")
 	}
 }
 
-// --- RenderInvitePlain ---
-
-func TestRenderInvitePlain_ContainsRecipientFirstName(t *testing.T) {
-	p := basePayload()
-	out := RenderInvitePlain(p)
-	if !strings.Contains(out, "Alice") {
-		t.Errorf("plain text missing recipient first name")
-	}
-}
-
-func TestRenderInvitePlain_ContainsInviterFullName(t *testing.T) {
-	p := basePayload()
-	out := RenderInvitePlain(p)
-	if !strings.Contains(out, "Bob Jones") {
-		t.Errorf("plain text missing inviter full name")
-	}
-}
-
-func TestRenderInvitePlain_ContainsResourceName(t *testing.T) {
-	p := basePayload()
-	out := RenderInvitePlain(p)
-	if !strings.Contains(out, p.ResourceName) {
-		t.Errorf("plain text missing resource name %q", p.ResourceName)
-	}
-}
-
-func TestRenderInvitePlain_ContainsDeepLink(t *testing.T) {
-	p := basePayload()
-	out := RenderInvitePlain(p)
-	if !strings.Contains(out, p.InviteLink) {
-		t.Errorf("plain text missing invite link %q", p.InviteLink)
-	}
-}
-
-func TestRenderInvitePlain_ContainsRole(t *testing.T) {
-	p := basePayload()
-	out := RenderInvitePlain(p)
-	if !strings.Contains(out, p.Role) {
-		t.Errorf("plain text missing role %q", p.Role)
-	}
-}
-
-func TestRenderInvitePlain_WithoutInviter(t *testing.T) {
-	p := basePayload()
-	p.InviterName = ""
-	out := RenderInvitePlain(p)
-	if strings.Contains(out, "Bob") {
-		t.Error("plain text should not contain inviter name when absent")
-	}
-	if !strings.Contains(out, "You have been invited") {
-		t.Errorf("plain text missing generic invite line, got:\n%s", out)
-	}
-}
-
-func TestRenderInvitePlain_ContainsOrgTeamSignature(t *testing.T) {
-	p := basePayload()
-	out := RenderInvitePlain(p)
-	if !strings.Contains(out, "The Linux Foundation Team") {
-		t.Errorf("plain text missing org team signature, got:\n%s", out)
-	}
-}
-
-func TestRenderInvitePlain_DefaultsOrgNameToLFX(t *testing.T) {
-	p := basePayload()
-	p.OrgName = ""
-	out := RenderInvitePlain(p)
-	if !strings.Contains(out, "The LFX Team") {
-		t.Error("plain text should fall back to 'The LFX Team' when OrgName is empty")
-	}
-}
-
-func TestRenderInviteHTML_EmptyRecipientName_GreetingHasNoTrailingSpace(t *testing.T) {
+func TestRenderInviteEmail_HTML_EmptyRecipientName_GreetingHasNoTrailingSpace(t *testing.T) {
 	p := basePayload()
 	p.RecipientName = ""
-	out := RenderInviteHTML(p)
+	out := RenderInviteEmail(p).HTML
 	if strings.Contains(out, "Hi ,") {
 		t.Error("HTML greeting should be 'Hi,' not 'Hi ,' when recipient name is empty")
 	}
@@ -223,10 +152,81 @@ func TestRenderInviteHTML_EmptyRecipientName_GreetingHasNoTrailingSpace(t *testi
 	}
 }
 
-func TestRenderInvitePlain_EmptyRecipientName_GreetingHasNoTrailingSpace(t *testing.T) {
+// --- Plain-text body ---
+
+func TestRenderInviteEmail_Plain_ContainsRecipientFirstName(t *testing.T) {
+	p := basePayload()
+	out := RenderInviteEmail(p).Plain
+	if !strings.Contains(out, "Alice") {
+		t.Errorf("plain text missing recipient first name")
+	}
+}
+
+func TestRenderInviteEmail_Plain_ContainsInviterFullName(t *testing.T) {
+	p := basePayload()
+	out := RenderInviteEmail(p).Plain
+	if !strings.Contains(out, "Bob Jones") {
+		t.Errorf("plain text missing inviter full name")
+	}
+}
+
+func TestRenderInviteEmail_Plain_ContainsResourceName(t *testing.T) {
+	p := basePayload()
+	out := RenderInviteEmail(p).Plain
+	if !strings.Contains(out, p.ResourceName) {
+		t.Errorf("plain text missing resource name %q", p.ResourceName)
+	}
+}
+
+func TestRenderInviteEmail_Plain_ContainsDeepLink(t *testing.T) {
+	p := basePayload()
+	out := RenderInviteEmail(p).Plain
+	if !strings.Contains(out, p.InviteLink) {
+		t.Errorf("plain text missing invite link %q", p.InviteLink)
+	}
+}
+
+func TestRenderInviteEmail_Plain_ContainsRole(t *testing.T) {
+	p := basePayload()
+	out := RenderInviteEmail(p).Plain
+	if !strings.Contains(out, p.Role) {
+		t.Errorf("plain text missing role %q", p.Role)
+	}
+}
+
+func TestRenderInviteEmail_Plain_WithoutInviter(t *testing.T) {
+	p := basePayload()
+	p.InviterName = ""
+	out := RenderInviteEmail(p).Plain
+	if strings.Contains(out, "Bob") {
+		t.Error("plain text should not contain inviter name when absent")
+	}
+	if !strings.Contains(out, "You have been invited") {
+		t.Errorf("plain text missing generic invite line, got:\n%s", out)
+	}
+}
+
+func TestRenderInviteEmail_Plain_ContainsOrgTeamSignature(t *testing.T) {
+	p := basePayload()
+	out := RenderInviteEmail(p).Plain
+	if !strings.Contains(out, "The Linux Foundation Team") {
+		t.Errorf("plain text missing org team signature, got:\n%s", out)
+	}
+}
+
+func TestRenderInviteEmail_Plain_DefaultsOrgNameToLFX(t *testing.T) {
+	p := basePayload()
+	p.OrgName = ""
+	out := RenderInviteEmail(p).Plain
+	if !strings.Contains(out, "The LFX Team") {
+		t.Error("plain text should fall back to 'The LFX Team' when OrgName is empty")
+	}
+}
+
+func TestRenderInviteEmail_Plain_EmptyRecipientName_GreetingHasNoTrailingSpace(t *testing.T) {
 	p := basePayload()
 	p.RecipientName = ""
-	out := RenderInvitePlain(p)
+	out := RenderInviteEmail(p).Plain
 	if strings.Contains(out, "Hi ,") {
 		t.Error("plain text greeting should be 'Hi,' not 'Hi ,' when recipient name is empty")
 	}
@@ -235,13 +235,15 @@ func TestRenderInvitePlain_EmptyRecipientName_GreetingHasNoTrailingSpace(t *test
 	}
 }
 
-func TestRenderInvitePlain_ContainsSteps(t *testing.T) {
+func TestRenderInviteEmail_Plain_ContainsSteps(t *testing.T) {
 	p := basePayload()
-	out := RenderInvitePlain(p)
+	out := RenderInviteEmail(p).Plain
 	if !strings.Contains(out, "1.") || !strings.Contains(out, "2.") || !strings.Contains(out, "3.") {
 		t.Error("plain text missing numbered steps")
 	}
 }
+
+// --- Fallback internals (white-box, same package) ---
 
 func TestFallbackInviteSubject_WithInviter(t *testing.T) {
 	subject := fallbackInviteSubject(inviteEmailData{
