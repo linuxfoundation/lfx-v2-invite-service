@@ -29,7 +29,7 @@ type noopLinkGenerator struct{}
 // errorLinkGenerator always returns an error from Generate.
 type errorLinkGenerator struct{ err error }
 
-func (e *errorLinkGenerator) Generate(_ context.Context, _, _, _, _, _ string, _ int, _ map[string]string) (string, string, time.Time, error) {
+func (e *errorLinkGenerator) Generate(_ context.Context, _ port.LinkPayload) (string, string, time.Time, error) {
 	return "", "", time.Time{}, e.err
 }
 
@@ -44,8 +44,8 @@ func captureLogs(t *testing.T) *bytes.Buffer {
 	return buf
 }
 
-func (n *noopLinkGenerator) Generate(_ context.Context, recipientEmail, _, _, _, _ string, _ int, _ map[string]string) (string, string, time.Time, error) {
-	return testBaseURL + "/invite?token=test-token-for-" + recipientEmail, "test-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
+func (n *noopLinkGenerator) Generate(_ context.Context, p port.LinkPayload) (string, string, time.Time, error) {
+	return testBaseURL + "/invite?token=test-token-for-" + p.RecipientEmail, "test-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
 }
 
 func newService(email *mocks.EmailSender) *NotificationService {
@@ -452,9 +452,9 @@ type spyLinkGenerator struct {
 	capturedClaims map[string]string
 }
 
-func (s *spyLinkGenerator) Generate(_ context.Context, recipientEmail, _, _, _, _ string, _ int, customClaims map[string]string) (string, string, time.Time, error) {
-	s.capturedClaims = customClaims
-	return testBaseURL + "/invite?token=spy-token-for-" + recipientEmail, "spy-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
+func (s *spyLinkGenerator) Generate(_ context.Context, p port.LinkPayload) (string, string, time.Time, error) {
+	s.capturedClaims = p.CustomClaims
+	return testBaseURL + "/invite?token=spy-token-for-" + p.RecipientEmail, "spy-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
 }
 
 // TestHandleSendInvite_CustomClaimsThreaded verifies that CustomClaims set on the

@@ -60,10 +60,11 @@ var reservedClaims = map[string]struct{}{
 //
 // Verifier note: the self-serve web app MUST validate with
 // jwt.WithValidMethods([]string{"HS256"}) to prevent algorithm-confusion attacks.
-func (g *LinkGenerator) Generate(ctx context.Context, recipientEmail, returnURL, resourceUID, resourceType, role string, expirationDays int, customClaims map[string]string) (link, inviteUID string, expiresAt time.Time, err error) {
+func (g *LinkGenerator) Generate(ctx context.Context, p port.LinkPayload) (link, inviteUID string, expiresAt time.Time, err error) {
 	now := time.Now()
 	inviteUID = uuid.NewString()
 	ttl := tokenTTL
+	expirationDays := p.ExpirationDays
 	if expirationDays > 0 {
 		if expirationDays > maxExpirationDays {
 			slog.WarnContext(ctx, "expirationDays exceeds maximum; clamping",
@@ -85,18 +86,18 @@ func (g *LinkGenerator) Generate(ctx context.Context, recipientEmail, returnURL,
 		"jti": inviteUID,
 		// Application claims.
 		"invite_uid":   inviteUID,
-		"email":        recipientEmail,
-		"return_url":   returnURL,
-		"resource_uid": resourceUID,
-		"role":         role,
+		"email":        p.RecipientEmail,
+		"return_url":   p.DestinationURL,
+		"resource_uid": p.ResourceUID,
+		"role":         p.Role,
 	}
-	if resourceType != "" {
-		claims["resource_type"] = resourceType
+	if p.ResourceType != "" {
+		claims["resource_type"] = p.ResourceType
 	}
-	if len(customClaims) > maxCustomClaims {
-		return "", "", time.Time{}, fmt.Errorf("%w: too many entries (%d > %d)", port.ErrInvalidCustomClaims, len(customClaims), maxCustomClaims)
+	if len(p.CustomClaims) > maxCustomClaims {
+		return "", "", time.Time{}, fmt.Errorf("%w: too many entries (%d > %d)", port.ErrInvalidCustomClaims, len(p.CustomClaims), maxCustomClaims)
 	}
-	for k, v := range customClaims {
+	for k, v := range p.CustomClaims {
 		if len(k) > maxCustomClaimKeyLen {
 			return "", "", time.Time{}, fmt.Errorf("%w: key %q exceeds max length (%d > %d)", port.ErrInvalidCustomClaims, k, len(k), maxCustomClaimKeyLen)
 		}

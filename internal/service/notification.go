@@ -108,7 +108,15 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	// Generate a signed JWT invite link wrapping the destination URL.
 	// Fail closed: JWT signing failure is a hard error — silently falling back to a
 	// plain URL would deliver an LFX-branded email pointing to an unsigned, unrevokable link.
-	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(ctx, canonicalEmail, destURL, resourceUID, req.ResolvedResourceType(), roleStr, req.ExpirationDays, req.CustomClaims)
+	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(ctx, port.LinkPayload{
+		RecipientEmail: canonicalEmail,
+		DestinationURL: destURL,
+		ResourceUID:    resourceUID,
+		ResourceType:   req.ResolvedResourceType(),
+		Role:           roleStr,
+		ExpirationDays: req.ExpirationDays,
+		CustomClaims:   req.CustomClaims,
+	})
 	if linkErr != nil {
 		if errors.Is(linkErr, port.ErrInvalidCustomClaims) {
 			return SendInviteResult{}, fmt.Errorf("%w: %w", ErrInvalidRequest, linkErr)
