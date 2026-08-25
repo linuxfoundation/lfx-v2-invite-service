@@ -45,7 +45,7 @@ internal/infrastructure/
 │   ├── log.go                  # slog + OTel handler init; InitStructureLogConfig
 │   └── otel.go                 # OTel SDK bootstrap (traces, metrics, logs via autoexport)
 └── smtp/
-    ├── templates.go            # InviteEmailSubject / RenderInviteHTML / RenderInvitePlain — all take model.InviteEmailPayload
+    ├── templates.go            # RenderInviteEmail(model.InviteEmailPayload) RenderedInviteEmail — renders subject, HTML, and plain text in one call
     └── templates/              # Embedded: invite_body.gohtml, invite_subject.gotemplate, invite_text.gotemplate
 
 pkg/

@@ -46,12 +46,12 @@ var reservedClaims = map[string]struct{}{
 	"resource_type": {}, "role": {},
 }
 
-// Generate creates a signed JWT invite link for the given recipient and destination.
+// Generate creates a signed JWT invite link from the fields in p.
 // The token is HS256-signed and carries: iss, aud, iat, nbf, exp, jti, email,
-// invite_uid, return_url, resource_uid, resource_type, role, and any customClaims.
-// resourceType is the kind of resource (e.g. "group", "project"); pass an empty string
-// when the type is unknown — the claim is omitted from the token in that case.
-// customClaims are additional string claims to embed; keys that collide with reserved
+// invite_uid, return_url, resource_uid, resource_type, role, and any p.CustomClaims.
+// p.ResourceType is the kind of resource (e.g. "group", "project"); an empty string
+// omits the resource_type claim from the token.
+// p.CustomClaims are additional string claims to embed; keys that collide with reserved
 // claims are ignored (with a warning log) to prevent claim hijacking. Claims that
 // exceed the count (maxCustomClaims), key-length (maxCustomClaimKeyLen), or
 // value-length (maxCustomClaimValueLen) limits cause Generate to return an error.
