@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"net/mail"
 
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
@@ -28,8 +29,11 @@ func NewInviteReadService(store port.InviteStore) *InviteReadService {
 }
 
 // GetInvite returns the api.Invite view for the given UID.
-// Returns ErrInviteNotFound when no record exists.
+// Returns ErrInvalidRequest when uid is empty, ErrInviteNotFound when no record exists.
 func (s *InviteReadService) GetInvite(ctx context.Context, uid string) (*api.Invite, error) {
+	if uid == "" {
+		return nil, fmt.Errorf("%w: uid must not be empty", ErrInvalidRequest)
+	}
 	record, err := s.inviteStore.GetByUID(ctx, uid)
 	if err != nil {
 		return nil, err
@@ -39,12 +43,16 @@ func (s *InviteReadService) GetInvite(ctx context.Context, uid string) (*api.Inv
 }
 
 // GetInvitesByEmail returns all api.Invite records for the given email address.
-// The email is canonicalized via mail.ParseAddress before the store lookup so
-// that display-name forms (e.g. "Alice <alice@example.com>") resolve to the same
-// index key as the stored canonical address. If parsing fails the raw email is
-// used as-is (best-effort, avoids blocking valid bare-address queries on malformed input).
+// Returns ErrInvalidRequest when email is empty. The email is canonicalized via
+// mail.ParseAddress before the store lookup so that display-name forms
+// (e.g. "Alice <alice@example.com>") resolve to the same index key as the stored
+// canonical address. If parsing fails the raw email is used as-is (best-effort,
+// avoids blocking valid bare-address queries on malformed input).
 // Returns an empty non-nil slice when no records exist — never returns an error in that case.
 func (s *InviteReadService) GetInvitesByEmail(ctx context.Context, email string) ([]api.Invite, error) {
+	if email == "" {
+		return nil, fmt.Errorf("%w: email must not be empty", ErrInvalidRequest)
+	}
 	if addr, err := mail.ParseAddress(email); err == nil {
 		email = addr.Address
 	}

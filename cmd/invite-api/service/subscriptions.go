@@ -141,17 +141,15 @@ func (s *Server) Start(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		if req.UID == "" {
-			replyGetInviteError(msgCtx, msg, "invalid_request")
-			return
-		}
-
 		invite, err := s.readSvc.GetInvite(msgCtx, req.UID)
 		var resp api.GetInviteResponse
 		if err != nil {
-			if errors.Is(err, intsvc.ErrInviteNotFound) {
+			switch {
+			case errors.Is(err, intsvc.ErrInviteNotFound):
 				resp.Error = "not_found"
-			} else {
+			case errors.Is(err, intsvc.ErrInvalidRequest):
+				resp.Error = "invalid_request"
+			default:
 				slog.ErrorContext(msgCtx, "get_invite: store error", "invite_uid", req.UID, "error", err)
 				resp.Error = "internal_error"
 			}
@@ -188,13 +186,12 @@ func (s *Server) Start(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		if req.Email == "" {
-			replyGetByEmailError(msgCtx, msg, "invalid_request")
-			return
-		}
-
 		invites, err := s.readSvc.GetInvitesByEmail(msgCtx, req.Email)
 		if err != nil {
+			if errors.Is(err, intsvc.ErrInvalidRequest) {
+				replyGetByEmailError(msgCtx, msg, "invalid_request")
+				return
+			}
 			slog.ErrorContext(msgCtx, "get_invites_by_email: store error", "error", err)
 			replyGetByEmailError(msgCtx, msg, "internal_error")
 			return
