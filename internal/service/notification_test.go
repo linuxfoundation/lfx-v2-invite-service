@@ -467,7 +467,7 @@ func TestHandleSendInvite_LinkPayloadMapping(t *testing.T) {
 	svc := NewNotificationService(email, spy, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
 
 	req := baseInviteRequest()
-	req.ResourceType = "project"
+	req.Resource = &model.InviteResource{Type: "project"}
 	req.ExpirationDays = 14
 	req.CustomClaims = map[string]string{
 		"committee_invite_uid": "inv-abc123",
