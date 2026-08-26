@@ -37,7 +37,7 @@ type LinkPayload struct {
 	// values above the implementation maximum are clamped.
 	ExpirationDays int
 	// CustomClaims are additional string claims to embed in the JWT.
-	// Keys that collide with reserved claims are silently ignored.
+	// Keys that collide with reserved claims are skipped and a warning is logged.
 	CustomClaims map[string]string
 }
 

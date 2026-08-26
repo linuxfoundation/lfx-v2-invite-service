@@ -446,20 +446,20 @@ func TestHandleSendInvite_InviteLinkIsSignedLink(t *testing.T) {
 	}
 }
 
-// spyLinkGenerator records the customClaims argument passed to Generate so tests can
-// assert that HandleSendInvite threads CustomClaims through to the link generator.
+// spyLinkGenerator records the full LinkPayload passed to Generate so tests can
+// assert that HandleSendInvite maps every request field correctly.
 type spyLinkGenerator struct {
-	capturedClaims map[string]string
+	captured port.LinkPayload
 }
 
 func (s *spyLinkGenerator) Generate(_ context.Context, p port.LinkPayload) (string, string, time.Time, error) {
-	s.capturedClaims = p.CustomClaims
+	s.captured = p
 	return testBaseURL + "/invite?token=spy-token-for-" + p.RecipientEmail, "spy-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
 }
 
-// TestHandleSendInvite_CustomClaimsThreaded verifies that CustomClaims set on the
-// request are forwarded to the LinkGenerator unchanged.
-func TestHandleSendInvite_CustomClaimsThreaded(t *testing.T) {
+// TestHandleSendInvite_LinkPayloadMapping verifies that HandleSendInvite maps every
+// SendInviteRequest field to the correct LinkPayload field before calling Generate.
+func TestHandleSendInvite_LinkPayloadMapping(t *testing.T) {
 	email := &mocks.EmailSender{
 		SendFunc: func(_ context.Context, _ model.InviteEmailPayload) error { return nil },
 	}
@@ -476,14 +476,35 @@ func TestHandleSendInvite_CustomClaimsThreaded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleSendInvite() error = %v", err)
 	}
-	if spy.capturedClaims == nil {
-		t.Fatal("LinkGenerator.Generate() was not called with any custom claims")
+
+	p := spy.captured
+	if p.RecipientEmail != "alice@example.com" {
+		t.Errorf("RecipientEmail = %q, want %q", p.RecipientEmail, "alice@example.com")
 	}
-	if got := spy.capturedClaims["committee_invite_uid"]; got != "inv-abc123" {
-		t.Errorf("committee_invite_uid = %q, want %q", got, "inv-abc123")
+	wantDest := testBaseURL + "/resources/" + testResourceUID
+	if p.DestinationURL != wantDest {
+		t.Errorf("DestinationURL = %q, want %q", p.DestinationURL, wantDest)
 	}
-	if got := spy.capturedClaims["extra_key"]; got != "extra_value" {
-		t.Errorf("extra_key = %q, want %q", got, "extra_value")
+	if p.ResourceUID != testResourceUID {
+		t.Errorf("ResourceUID = %q, want %q", p.ResourceUID, testResourceUID)
+	}
+	if p.ResourceType != req.ResolvedResourceType() {
+		t.Errorf("ResourceType = %q, want %q", p.ResourceType, req.ResolvedResourceType())
+	}
+	if p.Role != string(model.RoleManage) {
+		t.Errorf("Role = %q, want %q", p.Role, string(model.RoleManage))
+	}
+	if p.ExpirationDays != 0 {
+		t.Errorf("ExpirationDays = %d, want 0", p.ExpirationDays)
+	}
+	if p.CustomClaims == nil {
+		t.Fatal("CustomClaims is nil, want non-nil map")
+	}
+	if got := p.CustomClaims["committee_invite_uid"]; got != "inv-abc123" {
+		t.Errorf("CustomClaims[committee_invite_uid] = %q, want %q", got, "inv-abc123")
+	}
+	if got := p.CustomClaims["extra_key"]; got != "extra_value" {
+		t.Errorf("CustomClaims[extra_key] = %q, want %q", got, "extra_value")
 	}
 }
 
