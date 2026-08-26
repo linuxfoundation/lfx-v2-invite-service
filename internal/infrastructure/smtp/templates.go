@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"fmt"
 	htmltmpl "html/template"
+	"io"
 	"strings"
 	texttmpl "text/template"
 
@@ -122,35 +123,30 @@ type RenderedInviteEmail struct {
 	Plain   string
 }
 
+// templateExecutor is satisfied by both html/template.Template and
+// text/template.Template, letting renderPart work with either.
+type templateExecutor interface {
+	Execute(wr io.Writer, data any) error
+}
+
+// renderPart executes tmpl into a buffer and returns the result. If execution
+// fails it returns fallback(data) instead.
+func renderPart(tmpl templateExecutor, data inviteEmailData, fallback func(inviteEmailData) string) string {
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fallback(data)
+	}
+	return buf.String()
+}
+
 // RenderInviteEmail renders all three parts of an invite email in a single
 // call. buildTemplateData is invoked once, keeping the rendering cohesive and
 // the caller interface small.
 func RenderInviteEmail(payload model.InviteEmailPayload) RenderedInviteEmail {
 	data := buildTemplateData(payload)
-
-	var subjectBuf bytes.Buffer
-	subject := func() string {
-		if err := subjectTmpl.Execute(&subjectBuf, data); err != nil {
-			return fallbackInviteSubject(data)
-		}
-		return sanitizeSingleLine(subjectBuf.String())
-	}()
-
-	var htmlBuf bytes.Buffer
-	html := func() string {
-		if err := htmlTmpl.Execute(&htmlBuf, data); err != nil {
-			return fallbackInviteHTML(data)
-		}
-		return htmlBuf.String()
-	}()
-
-	var plainBuf bytes.Buffer
-	plain := func() string {
-		if err := plainTmpl.Execute(&plainBuf, data); err != nil {
-			return fallbackInvitePlain(data)
-		}
-		return plainBuf.String()
-	}()
-
-	return RenderedInviteEmail{Subject: subject, HTML: html, Plain: plain}
+	return RenderedInviteEmail{
+		Subject: sanitizeSingleLine(renderPart(subjectTmpl, data, fallbackInviteSubject)),
+		HTML:    renderPart(htmlTmpl, data, fallbackInviteHTML),
+		Plain:   renderPart(plainTmpl, data, fallbackInvitePlain),
+	}
 }
