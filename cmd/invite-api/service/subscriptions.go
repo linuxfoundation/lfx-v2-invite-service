@@ -30,11 +30,11 @@ const (
 	kvHandlerTimeout = 10 * time.Second
 )
 
-// StartSubscriptions binds all NATS subscribers and returns their stop functions.
+// Start binds all NATS subscribers and returns their stop functions.
 // If any subscription fails to start, all previously started subscriptions are
 // stopped before the error is returned so the process is never left in a
 // partially-initialized state with live consumers.
-func StartSubscriptions(ctx context.Context) ([]func(), error) {
+func (s *Server) Start(ctx context.Context) ([]func(), error) {
 	stopFuncs := make([]func(), 0, 4)
 
 	// stopAll is called on any startup error to unsubscribe consumers already registered.
@@ -45,7 +45,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	}
 
 	// --- send_invite: request/reply from resource services ---
-	stopSend, err := NATSClient.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopSend, err := s.natsClient.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, msgHandlerTimeout)
 		defer cancel()
 
@@ -59,7 +59,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		result, handlerErr := NotificationSvc.HandleSendInvite(msgCtx, &req)
+		result, handlerErr := s.notifSvc.HandleSendInvite(msgCtx, &req)
 
 		var resp api.SendInviteResponse
 		if handlerErr != nil {
@@ -106,7 +106,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "send-invite")
 
 	// --- invite.accepted: fire-and-forget event from self-serve web app ---
-	stopAccepted, err := NATSClient.QueueSubscribe(api.InviteAcceptedSubject, acceptanceQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopAccepted, err := s.natsClient.QueueSubscribe(api.InviteAcceptedSubject, acceptanceQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
@@ -120,7 +120,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		AcceptanceSvc.HandleInviteAccepted(msgCtx, evt)
+		s.acceptSvc.HandleInviteAccepted(msgCtx, evt)
 	})
 	if err != nil {
 		stopAll()
@@ -130,7 +130,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "invite-accepted")
 
 	// --- get_invite: request/reply — fetch invite record by UID ---
-	stopGetInvite, err := NATSClient.QueueSubscribe(api.GetInviteSubject, getInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopGetInvite, err := s.natsClient.QueueSubscribe(api.GetInviteSubject, getInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
@@ -146,7 +146,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		invite, err := InviteReadSvc.GetInvite(msgCtx, req.UID)
+		invite, err := s.readSvc.GetInvite(msgCtx, req.UID)
 		var resp api.GetInviteResponse
 		if err != nil {
 			if errors.Is(err, intsvc.ErrInviteNotFound) {
@@ -177,7 +177,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "get-invite")
 
 	// --- get_invites_by_email: request/reply — fetch invite records by email ---
-	stopGetByEmail, err := NATSClient.QueueSubscribe(api.GetInvitesByEmailSubject, getByEmailQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopGetByEmail, err := s.natsClient.QueueSubscribe(api.GetInvitesByEmailSubject, getByEmailQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
@@ -193,7 +193,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		invites, err := InviteReadSvc.GetInvitesByEmail(msgCtx, req.Email)
+		invites, err := s.readSvc.GetInvitesByEmail(msgCtx, req.Email)
 		if err != nil {
 			slog.ErrorContext(msgCtx, "get_invites_by_email: store error", "error", err)
 			replyGetByEmailError(msgCtx, msg, "internal_error")

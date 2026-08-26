@@ -61,12 +61,13 @@ func run() error {
 	cfg := appsvc.AppConfigFromEnv()
 	observability.InitStructureLogConfig(cfg.LogLevel)
 
-	if err := appsvc.InitInfrastructure(ctx, cfg); err != nil {
+	srv, err := appsvc.NewServerFromConfig(ctx, cfg)
+	if err != nil {
 		return err
 	}
-	defer appsvc.Shutdown()
+	defer srv.Close() //nolint:errcheck
 
-	stops, err := appsvc.StartSubscriptions(ctx)
+	stops, err := srv.Start(ctx)
 	if err != nil {
 		return err
 	}
