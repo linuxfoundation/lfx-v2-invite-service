@@ -467,6 +467,8 @@ func TestHandleSendInvite_LinkPayloadMapping(t *testing.T) {
 	svc := NewNotificationService(email, spy, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
 
 	req := baseInviteRequest()
+	req.ResourceType = "project"
+	req.ExpirationDays = 14
 	req.CustomClaims = map[string]string{
 		"committee_invite_uid": "inv-abc123",
 		"extra_key":            "extra_value",
@@ -488,14 +490,14 @@ func TestHandleSendInvite_LinkPayloadMapping(t *testing.T) {
 	if p.ResourceUID != testResourceUID {
 		t.Errorf("ResourceUID = %q, want %q", p.ResourceUID, testResourceUID)
 	}
-	if p.ResourceType != req.ResolvedResourceType() {
-		t.Errorf("ResourceType = %q, want %q", p.ResourceType, req.ResolvedResourceType())
+	if p.ResourceType != "project" {
+		t.Errorf("ResourceType = %q, want %q", p.ResourceType, "project")
 	}
 	if p.Role != string(model.RoleManage) {
 		t.Errorf("Role = %q, want %q", p.Role, string(model.RoleManage))
 	}
-	if p.ExpirationDays != 0 {
-		t.Errorf("ExpirationDays = %d, want 0", p.ExpirationDays)
+	if p.ExpirationDays != 14 {
+		t.Errorf("ExpirationDays = %d, want 14", p.ExpirationDays)
 	}
 	if p.CustomClaims == nil {
 		t.Fatal("CustomClaims is nil, want non-nil map")
