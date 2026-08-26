@@ -35,11 +35,12 @@ func NewNATSEmailSender(client *Client, subject string) *NATSEmailSender {
 // SendNotification renders the invite template and publishes to the email service
 // via NATS request/reply. An empty reply means success.
 func (s *NATSEmailSender) SendNotification(ctx context.Context, payload model.InviteEmailPayload) error {
+	rendered := smtptmpl.RenderInviteEmail(payload)
 	envelope := emailapi.SendEmailRequest{
 		To:      payload.RecipientEmail,
-		Subject: smtptmpl.InviteEmailSubject(payload),
-		HTML:    smtptmpl.RenderInviteHTML(payload),
-		Text:    smtptmpl.RenderInvitePlain(payload),
+		Subject: rendered.Subject,
+		HTML:    rendered.HTML,
+		Text:    rendered.Plain,
 	}
 
 	data, err := json.Marshal(envelope)

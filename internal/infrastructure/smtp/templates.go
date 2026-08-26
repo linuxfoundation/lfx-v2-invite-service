@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"fmt"
 	htmltmpl "html/template"
+	"io"
 	"strings"
 	texttmpl "text/template"
 
@@ -114,32 +115,38 @@ func fallbackInvitePlain(data inviteEmailData) string {
 		sanitizeSingleLine(data.ResourceName), suffix, sanitizeSingleLine(data.ReturnURL))
 }
 
-// InviteEmailSubject renders the email subject line for an invite.
-func InviteEmailSubject(payload model.InviteEmailPayload) string {
-	data := buildTemplateData(payload)
-	var buf bytes.Buffer
-	if err := subjectTmpl.Execute(&buf, data); err != nil {
-		return fallbackInviteSubject(data)
-	}
-	return sanitizeSingleLine(buf.String())
+// RenderedInviteEmail holds the rendered subject, HTML body, and plain-text
+// body for an invite notification email.
+type RenderedInviteEmail struct {
+	Subject string
+	HTML    string
+	Plain   string
 }
 
-// RenderInviteHTML renders the HTML body for an invite notification.
-func RenderInviteHTML(payload model.InviteEmailPayload) string {
-	data := buildTemplateData(payload)
+// templateExecutor is satisfied by both html/template.Template and
+// text/template.Template, letting renderPart work with either.
+type templateExecutor interface {
+	Execute(wr io.Writer, data any) error
+}
+
+// renderPart executes tmpl into a buffer and returns the result. If execution
+// fails it returns fallback(data) instead.
+func renderPart(tmpl templateExecutor, data inviteEmailData, fallback func(inviteEmailData) string) string {
 	var buf bytes.Buffer
-	if err := htmlTmpl.Execute(&buf, data); err != nil {
-		return fallbackInviteHTML(data)
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fallback(data)
 	}
 	return buf.String()
 }
 
-// RenderInvitePlain renders the plain-text body for an invite notification.
-func RenderInvitePlain(payload model.InviteEmailPayload) string {
+// RenderInviteEmail renders all three parts of an invite email in a single
+// call. buildTemplateData is invoked once, keeping the rendering cohesive and
+// the caller interface small.
+func RenderInviteEmail(payload model.InviteEmailPayload) RenderedInviteEmail {
 	data := buildTemplateData(payload)
-	var buf bytes.Buffer
-	if err := plainTmpl.Execute(&buf, data); err != nil {
-		return fallbackInvitePlain(data)
+	return RenderedInviteEmail{
+		Subject: sanitizeSingleLine(renderPart(subjectTmpl, data, fallbackInviteSubject)),
+		HTML:    renderPart(htmlTmpl, data, fallbackInviteHTML),
+		Plain:   renderPart(plainTmpl, data, fallbackInvitePlain),
 	}
-	return buf.String()
 }

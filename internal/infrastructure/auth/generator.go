@@ -46,12 +46,12 @@ var reservedClaims = map[string]struct{}{
 	"resource_type": {}, "role": {},
 }
 
-// Generate creates a signed JWT invite link for the given recipient and destination.
+// Generate creates a signed JWT invite link from the fields in p.
 // The token is HS256-signed and carries: iss, aud, iat, nbf, exp, jti, email,
-// invite_uid, return_url, resource_uid, resource_type, role, and any customClaims.
-// resourceType is the kind of resource (e.g. "group", "project"); pass an empty string
-// when the type is unknown — the claim is omitted from the token in that case.
-// customClaims are additional string claims to embed; keys that collide with reserved
+// invite_uid, return_url, resource_uid, resource_type, role, and any p.CustomClaims.
+// p.ResourceType is the kind of resource (e.g. "group", "project"); an empty string
+// omits the resource_type claim from the token.
+// p.CustomClaims are additional string claims to embed; keys that collide with reserved
 // claims are ignored (with a warning log) to prevent claim hijacking. Claims that
 // exceed the count (maxCustomClaims), key-length (maxCustomClaimKeyLen), or
 // value-length (maxCustomClaimValueLen) limits cause Generate to return an error.
@@ -60,10 +60,11 @@ var reservedClaims = map[string]struct{}{
 //
 // Verifier note: the self-serve web app MUST validate with
 // jwt.WithValidMethods([]string{"HS256"}) to prevent algorithm-confusion attacks.
-func (g *LinkGenerator) Generate(ctx context.Context, recipientEmail, returnURL, resourceUID, resourceType, role string, expirationDays int, customClaims map[string]string) (link, inviteUID string, expiresAt time.Time, err error) {
+func (g *LinkGenerator) Generate(ctx context.Context, p port.LinkPayload) (link, inviteUID string, expiresAt time.Time, err error) {
 	now := time.Now()
 	inviteUID = uuid.NewString()
 	ttl := tokenTTL
+	expirationDays := p.ExpirationDays
 	if expirationDays > 0 {
 		if expirationDays > maxExpirationDays {
 			slog.WarnContext(ctx, "expirationDays exceeds maximum; clamping",
@@ -85,18 +86,18 @@ func (g *LinkGenerator) Generate(ctx context.Context, recipientEmail, returnURL,
 		"jti": inviteUID,
 		// Application claims.
 		"invite_uid":   inviteUID,
-		"email":        recipientEmail,
-		"return_url":   returnURL,
-		"resource_uid": resourceUID,
-		"role":         role,
+		"email":        p.RecipientEmail,
+		"return_url":   p.DestinationURL,
+		"resource_uid": p.ResourceUID,
+		"role":         p.Role,
 	}
-	if resourceType != "" {
-		claims["resource_type"] = resourceType
+	if p.ResourceType != "" {
+		claims["resource_type"] = p.ResourceType
 	}
-	if len(customClaims) > maxCustomClaims {
-		return "", "", time.Time{}, fmt.Errorf("%w: too many entries (%d > %d)", port.ErrInvalidCustomClaims, len(customClaims), maxCustomClaims)
+	if len(p.CustomClaims) > maxCustomClaims {
+		return "", "", time.Time{}, fmt.Errorf("%w: too many entries (%d > %d)", port.ErrInvalidCustomClaims, len(p.CustomClaims), maxCustomClaims)
 	}
-	for k, v := range customClaims {
+	for k, v := range p.CustomClaims {
 		if len(k) > maxCustomClaimKeyLen {
 			return "", "", time.Time{}, fmt.Errorf("%w: key %q exceeds max length (%d > %d)", port.ErrInvalidCustomClaims, k, len(k), maxCustomClaimKeyLen)
 		}

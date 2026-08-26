@@ -20,14 +20,16 @@ import (
 func TestLinkGenerator_Generate(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	baseURL := "https://lfx.example.com"
-	recipientEmail := "user@example.com"
-	returnURL := "https://lfx.example.com/project/overview?project=my-project"
-	resourceUID := "proj-abc123"
-	resourceType := "group"
-	role := "Manage"
+	p := port.LinkPayload{
+		RecipientEmail: "user@example.com",
+		DestinationURL: "https://lfx.example.com/project/overview?project=my-project",
+		ResourceUID:    "proj-abc123",
+		ResourceType:   "group",
+		Role:           "Manage",
+	}
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, inviteUID, expiresAt, err := gen.Generate(context.Background(), recipientEmail, returnURL, resourceUID, resourceType, role, 0, nil)
+	link, inviteUID, expiresAt, err := gen.Generate(context.Background(), p)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -63,20 +65,20 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	}
 
 	// Verify required claims are present and correct.
-	if got := claims["email"]; got != recipientEmail {
-		t.Errorf("email claim = %v, want %v", got, recipientEmail)
+	if got := claims["email"]; got != p.RecipientEmail {
+		t.Errorf("email claim = %v, want %v", got, p.RecipientEmail)
 	}
-	if got := claims["return_url"]; got != returnURL {
-		t.Errorf("return_url claim = %v, want %v", got, returnURL)
+	if got := claims["return_url"]; got != p.DestinationURL {
+		t.Errorf("return_url claim = %v, want %v", got, p.DestinationURL)
 	}
-	if got := claims["resource_uid"]; got != resourceUID {
-		t.Errorf("resource_uid claim = %v, want %v", got, resourceUID)
+	if got := claims["resource_uid"]; got != p.ResourceUID {
+		t.Errorf("resource_uid claim = %v, want %v", got, p.ResourceUID)
 	}
-	if got := claims["resource_type"]; got != resourceType {
-		t.Errorf("resource_type claim = %v, want %v", got, resourceType)
+	if got := claims["resource_type"]; got != p.ResourceType {
+		t.Errorf("resource_type claim = %v, want %v", got, p.ResourceType)
 	}
-	if got := claims["role"]; got != role {
-		t.Errorf("role claim = %v, want %v", got, role)
+	if got := claims["role"]; got != p.Role {
+		t.Errorf("role claim = %v, want %v", got, p.Role)
 	}
 	if claims["jti"] == "" || claims["jti"] == nil {
 		t.Error("jti claim is missing or empty")
@@ -111,7 +113,14 @@ func TestLinkGenerator_Generate_Custom_ExpirationDays(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, _, expiresAt, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "project", "Manage", 30, nil)
+	link, _, expiresAt, err := gen.Generate(context.Background(), port.LinkPayload{
+		RecipientEmail: "user@example.com",
+		DestinationURL: "https://example.com",
+		ResourceUID:    "res-123",
+		ResourceType:   "project",
+		Role:           "Manage",
+		ExpirationDays: 30,
+	})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -149,7 +158,12 @@ func TestLinkGenerator_Generate_WrongSecret(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com/dest", "res-123", "", "Manage", 0, nil)
+	link, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+		RecipientEmail: "user@example.com",
+		DestinationURL: "https://example.com/dest",
+		ResourceUID:    "res-123",
+		Role:           "Manage",
+	})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -167,9 +181,10 @@ func TestLinkGenerator_Generate_WrongSecret(t *testing.T) {
 func TestLinkGenerator_Generate_UniqueJTI(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
+	p := port.LinkPayload{RecipientEmail: "user@example.com", DestinationURL: "https://example.com", ResourceUID: "res-123", Role: "Manage"}
 
-	link1, _, _, _ := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
-	link2, _, _, _ := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
+	link1, _, _, _ := gen.Generate(context.Background(), p)
+	link2, _, _, _ := gen.Generate(context.Background(), p)
 
 	if link1 == link2 {
 		t.Error("two Generate() calls for the same input produced identical links (jti must be unique)")
@@ -180,7 +195,13 @@ func TestLinkGenerator_Generate_EmptyResourceType_ClaimOmitted(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	link, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "", "Manage", 0, nil)
+	link, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+		RecipientEmail: "user@example.com",
+		DestinationURL: "https://example.com",
+		ResourceUID:    "res-123",
+		Role:           "Manage",
+		// ResourceType intentionally empty
+	})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -206,11 +227,17 @@ func TestLinkGenerator_Generate_CustomClaims_Embedded(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	customClaims := map[string]string{
-		"committee_invite_uid": "inv-abc123",
-		"tenant_id":            "tenant-xyz",
-	}
-	link, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, customClaims)
+	link, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+		RecipientEmail: "user@example.com",
+		DestinationURL: "https://example.com",
+		ResourceUID:    "res-123",
+		ResourceType:   "group",
+		Role:           "Member",
+		CustomClaims: map[string]string{
+			"committee_invite_uid": "inv-abc123",
+			"tenant_id":            "tenant-xyz",
+		},
+	})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -240,11 +267,17 @@ func TestLinkGenerator_Generate_CustomClaims_ReservedKeysIgnored(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	// Attempt to override a reserved claim via CustomClaims — must be ignored (with a warning log).
-	customClaims := map[string]string{
-		"email":                "attacker@evil.com",
-		"committee_invite_uid": "inv-safe",
-	}
-	link, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, customClaims)
+	link, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+		RecipientEmail: "user@example.com",
+		DestinationURL: "https://example.com",
+		ResourceUID:    "res-123",
+		ResourceType:   "group",
+		Role:           "Member",
+		CustomClaims: map[string]string{
+			"email":                "attacker@evil.com",
+			"committee_invite_uid": "inv-safe",
+		},
+	})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -276,9 +309,16 @@ func TestLinkGenerator_Generate_CustomClaims_SubReserved(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	// sub is an RFC 7519 registered claim and must be reserved.
-	link, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
-		"sub":                  "attacker",
-		"committee_invite_uid": "inv-safe",
+	link, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+		RecipientEmail: "user@example.com",
+		DestinationURL: "https://example.com",
+		ResourceUID:    "res-123",
+		ResourceType:   "group",
+		Role:           "Member",
+		CustomClaims: map[string]string{
+			"sub":                  "attacker",
+			"committee_invite_uid": "inv-safe",
+		},
 	})
 	if err != nil {
 		t.Fatalf("Generate() unexpected error = %v", err)
@@ -309,11 +349,18 @@ func TestLinkGenerator_Generate_CustomClaims_TooMany(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	claims := make(map[string]string, 17)
+	tooMany := make(map[string]string, 17)
 	for i := 0; i < 17; i++ {
-		claims[fmt.Sprintf("key%d", i)] = "value"
+		tooMany[fmt.Sprintf("key%d", i)] = "value"
 	}
-	_, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, claims)
+	_, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+		RecipientEmail: "user@example.com",
+		DestinationURL: "https://example.com",
+		ResourceUID:    "res-123",
+		ResourceType:   "group",
+		Role:           "Member",
+		CustomClaims:   tooMany,
+	})
 	if err == nil {
 		t.Fatal("Generate() expected error for too many custom claims, got nil")
 	}
@@ -327,8 +374,13 @@ func TestLinkGenerator_Generate_CustomClaims_KeyTooLong(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	longKey := strings.Repeat("k", 65)
-	_, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
-		longKey: "value",
+	_, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+		RecipientEmail: "user@example.com",
+		DestinationURL: "https://example.com",
+		ResourceUID:    "res-123",
+		ResourceType:   "group",
+		Role:           "Member",
+		CustomClaims:   map[string]string{longKey: "value"},
 	})
 	if err == nil {
 		t.Fatal("Generate() expected error for oversized key, got nil")
@@ -343,8 +395,13 @@ func TestLinkGenerator_Generate_CustomClaims_ValueTooLong(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	longValue := strings.Repeat("v", 1025)
-	_, _, _, err := gen.Generate(context.Background(), "user@example.com", "https://example.com", "res-123", "group", "Member", 0, map[string]string{
-		"committee_invite_uid": longValue,
+	_, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+		RecipientEmail: "user@example.com",
+		DestinationURL: "https://example.com",
+		ResourceUID:    "res-123",
+		ResourceType:   "group",
+		Role:           "Member",
+		CustomClaims:   map[string]string{"committee_invite_uid": longValue},
 	})
 	if err == nil {
 		t.Fatal("Generate() expected error for oversized value, got nil")
