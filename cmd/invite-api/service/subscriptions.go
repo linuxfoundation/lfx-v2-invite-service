@@ -197,7 +197,7 @@ func (s *Server) Start(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		data, marshalErr := json.Marshal(invites)
+		data, marshalErr := json.Marshal(api.GetInvitesByEmailResponse{Invites: invites})
 		if marshalErr != nil {
 			slog.ErrorContext(msgCtx, "get_invites_by_email: failed to marshal response", "error", marshalErr)
 			replyGetByEmailError(msgCtx, msg, "internal_error")

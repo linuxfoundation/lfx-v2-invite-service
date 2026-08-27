@@ -204,10 +204,17 @@ type GetInvitesByEmailRequest struct {
 }
 
 // GetInvitesByEmailResponse is the reply payload for GetInvitesByEmailSubject.
-// On success the reply is a bare JSON array of Invite objects ([]Invite).
-// On failure this envelope is returned with only Error set.
+// Both success and failure use this envelope — callers must always unmarshal
+// into this type. On success Invites contains the matching records (empty slice
+// when none exist) and Error is absent. On failure Invites is null and Error
+// carries the error code.
+//
+// Breaking change: prior to this version, success replies were a bare JSON
+// array ([]Invite). Callers must update from unmarshalling into []Invite to
+// unmarshalling into GetInvitesByEmailResponse and reading the Invites field.
 type GetInvitesByEmailResponse struct {
-	Error string `json:"error,omitempty"`
+	Invites []Invite `json:"invites"`
+	Error   string   `json:"error,omitempty"`
 }
 
 // InviteServiceAcceptedEvent is published on InviteServiceAcceptedSubject by the
