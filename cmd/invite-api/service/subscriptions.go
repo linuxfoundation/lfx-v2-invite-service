@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
 	intsvc "github.com/linuxfoundation/lfx-v2-invite-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
@@ -49,8 +48,8 @@ func (s *Server) Start(ctx context.Context) ([]func(), error) {
 		msgCtx, cancel := context.WithTimeout(ctx, msgHandlerTimeout)
 		defer cancel()
 
-		var req model.SendInviteRequest
-		if err := json.Unmarshal(msg.Data(), &req); err != nil {
+		var apiReq api.SendInviteRequest
+		if err := json.Unmarshal(msg.Data(), &apiReq); err != nil {
 			slog.ErrorContext(msgCtx, "send_invite: failed to unmarshal payload",
 				"subject", msg.Subject(),
 				"error", err,
@@ -58,6 +57,7 @@ func (s *Server) Start(ctx context.Context) ([]func(), error) {
 			replyError(msgCtx, msg, "malformed_request")
 			return
 		}
+		req := apiToModelRequest(apiReq)
 
 		result, handlerErr := s.notifSvc.HandleSendInvite(msgCtx, &req)
 
