@@ -44,7 +44,7 @@ func (s *Server) Start(ctx context.Context) ([]func(), error) {
 	}
 
 	// --- send_invite: request/reply from resource services ---
-	stopSend, err := s.natsClient.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopSend, err := s.subscriber.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, msgHandlerTimeout)
 		defer cancel()
 
@@ -106,7 +106,7 @@ func (s *Server) Start(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "send-invite")
 
 	// --- invite.accepted: fire-and-forget event from self-serve web app ---
-	stopAccepted, err := s.natsClient.QueueSubscribe(api.InviteAcceptedSubject, acceptanceQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopAccepted, err := s.subscriber.QueueSubscribe(api.InviteAcceptedSubject, acceptanceQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
@@ -130,7 +130,7 @@ func (s *Server) Start(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "invite-accepted")
 
 	// --- get_invite: request/reply — fetch invite record by UID ---
-	stopGetInvite, err := s.natsClient.QueueSubscribe(api.GetInviteSubject, getInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopGetInvite, err := s.subscriber.QueueSubscribe(api.GetInviteSubject, getInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
@@ -175,7 +175,7 @@ func (s *Server) Start(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "get-invite")
 
 	// --- get_invites_by_email: request/reply — fetch invite records by email ---
-	stopGetByEmail, err := s.natsClient.QueueSubscribe(api.GetInvitesByEmailSubject, getByEmailQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopGetByEmail, err := s.subscriber.QueueSubscribe(api.GetInvitesByEmailSubject, getByEmailQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 

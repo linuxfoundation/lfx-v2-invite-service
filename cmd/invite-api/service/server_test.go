@@ -12,7 +12,7 @@ import (
 // TestNewServer_Construction verifies the injection constructor returns a
 // non-nil Server regardless of the dependency values passed.
 func TestNewServer_Construction(t *testing.T) {
-	srv := NewServer(nil, nil, nil, nil)
+	srv := NewServer(nil, nil, nil, nil, nil)
 	if srv == nil {
 		t.Fatal("NewServer returned nil")
 	}

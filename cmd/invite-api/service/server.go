@@ -9,33 +9,39 @@ import (
 	"log/slog"
 
 	emailapi "github.com/linuxfoundation/lfx-v2-email-service/pkg/api"
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
 	authinfra "github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/auth"
 	natsinfra "github.com/linuxfoundation/lfx-v2-invite-service/internal/infrastructure/nats"
 	intsvc "github.com/linuxfoundation/lfx-v2-invite-service/internal/service"
 )
 
 // Server holds all wired dependencies for the invite service and owns the
-// NATS subscription lifecycle. Construct with NewServerFromConfig for
-// production use, or NewServer to inject dependencies directly (e.g. in tests).
+// subscription lifecycle. Construct with NewServerFromConfig for production use,
+// or NewServer to inject dependencies directly (e.g. in tests).
 type Server struct {
-	natsClient *natsinfra.Client
+	subscriber port.Subscriber
+	closeFn    func() // shuts down the underlying transport connection
 	notifSvc   *intsvc.NotificationService
 	acceptSvc  *intsvc.AcceptanceService
 	readSvc    *intsvc.InviteReadService
 }
 
-// NewServer constructs a Server from pre-built dependencies. Use this when you
-// need to supply pre-built services directly — for example, when the concrete
-// *natsinfra.Client is replaced by a local interface in a future refactor.
-// Use NewServerFromConfig in production.
+// NewServer constructs a Server from pre-built dependencies. The closeFn is
+// called by Close to release any underlying connection held by the subscriber.
+// Pass a no-op func when the subscriber manages its own lifecycle.
 func NewServer(
-	natsClient *natsinfra.Client,
+	subscriber port.Subscriber,
+	closeFn func(),
 	notifSvc *intsvc.NotificationService,
 	acceptSvc *intsvc.AcceptanceService,
 	readSvc *intsvc.InviteReadService,
 ) *Server {
+	if closeFn == nil {
+		closeFn = func() {}
+	}
 	return &Server{
-		natsClient: natsClient,
+		subscriber: subscriber,
+		closeFn:    closeFn,
 		notifSvc:   notifSvc,
 		acceptSvc:  acceptSvc,
 		readSvc:    readSvc,
@@ -87,13 +93,11 @@ func NewServerFromConfig(ctx context.Context, cfg AppConfig) (*Server, error) {
 		"invites_kv_bucket", cfg.InvitesKVBucket,
 	)
 
-	return NewServer(nc, notifSvc, acceptSvc, readSvc), nil
+	return NewServer(nc, nc.Close, notifSvc, acceptSvc, readSvc), nil
 }
 
-// Close shuts down the NATS connection and satisfies io.Closer.
+// Close shuts down the underlying transport connection and satisfies io.Closer.
 func (s *Server) Close() error {
-	if s.natsClient != nil {
-		s.natsClient.Close()
-	}
+	s.closeFn()
 	return nil
 }
