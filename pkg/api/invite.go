@@ -21,9 +21,10 @@ const (
 	GetInviteSubject = "lfx.invite-service.get_invite"
 
 	// GetInvitesByEmailSubject is used for NATS request/reply to look up all invite
-	// records for a given email address. Callers send GetInvitesByEmailRequest; on
-	// success the invite service replies with a bare JSON array ([]Invite); on
-	// failure it replies with GetInvitesByEmailResponse (Error field set).
+	// records for a given email address. Callers send GetInvitesByEmailRequest;
+	// the reply is always GetInvitesByEmailResponse. On success Invites contains
+	// the matching records and Error is absent. On failure Invites is null and
+	// Error carries the error code.
 	GetInvitesByEmailSubject = "lfx.invite-service.get_invites_by_email"
 )
 

@@ -9,11 +9,14 @@ import (
 	"github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 )
 
-// TestAPIToModelRequest_MapsAllFields verifies that every field in
-// api.SendInviteRequest — structured objects and deprecated scalars alike —
-// arrives in the correct field of the domain model. This test is the
-// enforcement mechanism for the mapping: a field added to api.SendInviteRequest
-// that is omitted from apiToModelRequest will cause this test to fail.
+// TestAPIToModelRequest_MapsAllFields verifies that every currently-known field
+// in api.SendInviteRequest — structured objects and deprecated scalars alike —
+// arrives in the correct field of the domain model. This test documents the
+// mapping and acts as a review reference: when a field is added to
+// api.SendInviteRequest the converter must be updated and this test extended
+// to cover it. The test alone does not mechanically enforce completeness, so
+// code review of apiToModelRequest remains necessary when api.SendInviteRequest
+// changes.
 func TestAPIToModelRequest_MapsAllFields(t *testing.T) {
 	in := api.SendInviteRequest{
 		Recipient: &api.Recipient{

@@ -24,8 +24,10 @@ type Server struct {
 	readSvc    *intsvc.InviteReadService
 }
 
-// NewServer constructs a Server from pre-built dependencies. Use this in tests
-// to inject fakes; use NewServerFromConfig in production.
+// NewServer constructs a Server from pre-built dependencies. Use this when you
+// need to supply pre-built services directly — for example, when the concrete
+// *natsinfra.Client is replaced by a local interface in a future refactor.
+// Use NewServerFromConfig in production.
 func NewServer(
 	natsClient *natsinfra.Client,
 	notifSvc *intsvc.NotificationService,
@@ -61,6 +63,7 @@ func NewServerFromConfig(ctx context.Context, cfg AppConfig) (*Server, error) {
 
 	invitesKV, err := nc.KeyValue(ctx, cfg.InvitesKVBucket)
 	if err != nil {
+		nc.Close() // prevent socket leak — no Server exists yet for the caller to close
 		return nil, fmt.Errorf("bind invites KV bucket %q: %w", cfg.InvitesKVBucket, err)
 	}
 	inviteStore := natsinfra.NewNATSInviteRepository(invitesKV)
