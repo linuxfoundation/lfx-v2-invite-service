@@ -208,38 +208,40 @@ sending another.
 { "email": "alice@example.com" }
 ```
 
-**Success response** — a bare JSON array of invite records (empty array when none exist):
+**Response** — always a `GetInvitesByEmailResponse` envelope:
 
 ```json
-[
-  {
-    "uid": "550e8400-e29b-41d4-a716-446655440000",
-    "status": "pending",
-    "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
-    "inviter": { "name": "Bob Jones", "username": "bobjones" },
-    "resource": { "uid": "proj-abc123", "name": "My Project", "type": "project" },
-    "role": "Member",
-    "created_at": "2025-01-15T10:30:00Z",
-    "expires_at": "2025-02-14T10:30:00Z"
-  },
-  {
-    "uid": "661f9511-f30c-52e5-b827-557766551111",
-    "status": "accepted",
-    "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
-    "resource": { "uid": "comm-xyz789", "name": "My Committee", "type": "committee" },
-    "role": "Member",
-    "created_at": "2025-01-10T09:00:00Z",
-    "expires_at": "2025-02-09T09:00:00Z",
-    "accepted_at": "2025-01-11T16:30:00Z",
-    "accepted_by": "alice-lfid"
-  }
-]
+{
+  "invites": [
+    {
+      "uid": "550e8400-e29b-41d4-a716-446655440000",
+      "status": "pending",
+      "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
+      "inviter": { "name": "Bob Jones", "username": "bobjones" },
+      "resource": { "uid": "proj-abc123", "name": "My Project", "type": "project" },
+      "role": "Member",
+      "created_at": "2025-01-15T10:30:00Z",
+      "expires_at": "2025-02-14T10:30:00Z"
+    },
+    {
+      "uid": "661f9511-f30c-52e5-b827-557766551111",
+      "status": "accepted",
+      "recipient": { "name": "Alice Smith", "email": "alice@example.com" },
+      "resource": { "uid": "comm-xyz789", "name": "My Committee", "type": "committee" },
+      "role": "Member",
+      "created_at": "2025-01-10T09:00:00Z",
+      "expires_at": "2025-02-09T09:00:00Z",
+      "accepted_at": "2025-01-11T16:30:00Z",
+      "accepted_by": "alice-lfid"
+    }
+  ]
+}
 ```
 
-**Error response:**
+On error, `invites` is null and `error` is set:
 
 ```json
-{ "error": "<reason>" }
+{ "invites": null, "error": "<reason>" }
 ```
 
 | `error` value | Cause |
@@ -411,11 +413,15 @@ func main() {
 		panic(err)
 	}
 
-	var invites []inviteapi.Invite
-	if err := json.Unmarshal(listReply.Data, &invites); err != nil {
+	var listResp inviteapi.GetInvitesByEmailResponse
+	if err := json.Unmarshal(listReply.Data, &listResp); err != nil {
 		panic(err)
 	}
-	fmt.Printf("invites for alice: %d\n", len(invites))
+	if listResp.Error != "" {
+		fmt.Println("list failed:", listResp.Error)
+		return
+	}
+	fmt.Printf("invites for alice: %d\n", len(listResp.Invites))
 }
 ```
 
@@ -452,12 +458,13 @@ nats kv add invites --history=20 --storage=file
 │       ├── main.go                      # OTel bootstrap, signal handling, graceful shutdown
 │       └── service/
 │           ├── config.go            # AppConfig read from env vars
-│           ├── implementations.go   # Infrastructure wiring (NATS, KV, services)
-│           └── subscriptions.go     # NATS subscriber registration (all 4 subjects)
+│           ├── server.go            # Server struct; NewServer (injection) + NewServerFromConfig (production wiring) + Close
+│           ├── request_mapping.go   # apiToModelRequest — api→model converter at the transport seam
+│           └── subscriptions.go     # (s *Server) Start — NATS subscriber registration (all 4 subjects)
 ├── internal/
 │   ├── domain/
 │   │   ├── model/                   # Domain types: InviteRecord, SendInviteRequest, roles
-│   │   └── port/                    # Interfaces: EmailSender, InviteStore; mocks/
+│   │   └── port/                    # Interfaces: EmailSender, InviteStore, EventPublisher, Subscriber, InboundMessage; mocks/
 │   ├── infrastructure/
 │   │   ├── auth/                    # JWT link generator (HS256)
 │   │   ├── nats/                    # NATS client, NATSEmailSender, NATSInviteRepository
@@ -569,7 +576,7 @@ make check
 1. Add the handler method to the appropriate service in `internal/service/`.
 2. Add a queue-subscribe block in `cmd/invite-api/service/subscriptions.go` and append the stop func.
 3. Add subject constant + payload types to `pkg/api/invite.go`.
-4. Wire any new infrastructure (e.g. a KV binding) in `cmd/invite-api/service/implementations.go`.
+4. Wire any new infrastructure (e.g. a KV binding) in `cmd/invite-api/service/server.go` → `NewServerFromConfig`.
 
 ## Releases
 

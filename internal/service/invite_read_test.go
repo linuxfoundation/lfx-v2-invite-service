@@ -47,6 +47,11 @@ func TestInviteReadService_GetInvite(t *testing.T) {
 		wantErr    error
 	}{
 		{
+			name:    "returns ErrInvalidRequest for empty UID",
+			uid:     "",
+			wantErr: ErrInvalidRequest,
+		},
+		{
 			name: "returns invite for known UID",
 			uid:  "known-uid",
 			storeFunc: func(_ context.Context, uid string) (*model.InviteRecord, error) {
@@ -109,6 +114,11 @@ func TestInviteReadService_GetInvitesByEmail(t *testing.T) {
 		wantLen       int
 		wantErr       bool
 	}{
+		{
+			name:    "returns ErrInvalidRequest for empty email",
+			email:   "",
+			wantErr: true,
+		},
 		{
 			name:          "returns all invites for email",
 			email:         "alice@example.com",

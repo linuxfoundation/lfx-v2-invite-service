@@ -19,12 +19,13 @@ cmd/invite-api/
 ├── main.go                     # OTel bootstrap, build version injection, signal handling, graceful shutdown
 └── service/
     ├── config.go               # application env var reads live here (OTel SDK vars are the documented exception in main.go/otel.go)
-    ├── implementations.go      # Wires infrastructure into service structs; global vars NATSClient, NotificationSvc, etc.
-    └── subscriptions.go        # NATS subscriber registration (one QueueSubscribe per subject)
+    ├── server.go               # Server struct; NewServer (injection) + NewServerFromConfig (production wiring) + Close
+    ├── request_mapping.go      # apiToModelRequest — converts pkg/api.SendInviteRequest to internal domain model at the transport seam
+    └── subscriptions.go        # (s *Server) Start — NATS subscriber registration (one QueueSubscribe per subject)
 
 internal/domain/
 ├── model/                      # Pure data: SendInviteRequest (+ Resolved* helpers), InviteEmailPayload, InviteRecord, Inviter, Recipient, etc.
-└── port/                       # Interfaces: EmailSender, InviteStore, EventPublisher, LinkGenerator, InboundMessage; error sentinels; mocks/
+└── port/                       # Interfaces: EmailSender, InviteStore, EventPublisher, LinkGenerator, InboundMessage, Subscriber; error sentinels; mocks/
 
 internal/service/
 ├── notification.go             # HandleSendInvite — validates, generates JWT link, persists, sends; ErrInvalidRequest, ErrEmailDispatchFailed
@@ -61,7 +62,7 @@ pkg/
 - **Persist before send; rollback on failure.** `HandleSendInvite` writes the invite record to KV before calling the email service. If the email dispatch fails, it attempts a best-effort KV delete to avoid phantom invites.
 - **JWT signed invite links are never stored.** The KV record stores the *destination URL*, not the signed token. The token is generated on the fly and included in the email body only.
 - **`EmailSender` receives a typed `InviteEmailPayload`, not the raw request.** Before crossing the `EmailSender` seam, `HandleSendInvite` builds a `model.InviteEmailPayload` with all fields pre-resolved: `InviteLink` is always the signed JWT CTA URL, names are resolved, and `Role` is the already-trimmed value. Adapters (`NATSEmailSender`, smtp templates) consume `InviteEmailPayload` directly — they must not call `Resolved*()` helpers or read `SendInviteRequest` fields.
-- **All port interfaces live in `internal/domain/port`.** `EmailSender`, `InviteStore`, `EventPublisher`, `LinkGenerator`, and `InboundMessage` are all defined in the `port` package. Error sentinels that cross seams (e.g. `ErrInvalidCustomClaims`, `ErrInviteNotFound`, `ErrAlreadyAccepted`) also live here. The service layer imports only `port` and `model` — it has no direct dependency on any `internal/infrastructure` package.
+- **All port interfaces live in `internal/domain/port`.** `EmailSender`, `InviteStore`, `EventPublisher`, `LinkGenerator`, `InboundMessage`, and `Subscriber` are all defined in the `port` package. Error sentinels that cross seams (e.g. `ErrInvalidCustomClaims`, `ErrInviteNotFound`, `ErrAlreadyAccepted`) also live here. The service layer imports only `port` and `model` — it has no direct dependency on any `internal/infrastructure` package.
 - **Subscription handlers depend on `port.InboundMessage`, not `*nats.Msg`.** `Client.QueueSubscribe` wraps every incoming `*nats.Msg` in a private `natsMsg` adapter before calling the handler. Handlers call `msg.Data()`, `msg.Subject()`, and `msg.Reply(ctx, data)` — they never import `github.com/nats-io/nats.go`. Fire-and-forget messages (no reply address) are handled transparently by the adapter, which returns nil from `Reply` without publishing.
 - **Email canonicalization is the service layer's responsibility.** The repository stores and looks up emails exactly as given. `HandleSendInvite` canonicalizes via `mail.ParseAddress` before building the `InviteRecord` and the `InviteEmailPayload`. `InviteReadService.GetInvitesByEmail` canonicalizes via `mail.ParseAddress` (best-effort, falls through on parse failure) before calling the store. Do not add email canonicalization in `NATSInviteRepository`.
 - **Email index uses base64url encoding.** Raw email addresses contain characters (`@`, `+`) that are not valid NATS KV key segments. The repository encodes emails with `base64.RawURLEncoding` before using them as key prefixes. Both read and write paths use the same encoding so prefix scans stay correct.
@@ -147,7 +148,7 @@ Authoritative subject constants and payload types live in `pkg/api/invite.go`.
 | `api.SendInviteSubject` | `lfx.invite-service.send_invite` | Request/reply (consumed) | Resource services send `SendInviteRequest`; reply is `SendInviteResponse` (`uid`, `email`, `expires_at` or `error`) |
 | `api.InviteAcceptedSubject` | `lfx.invite.accepted` | Event (consumed) | Published by the self-serve web app; invite service marks the KV record accepted. Queue group `invite-service-acceptance` — co-consumed with project-service |
 | `api.GetInviteSubject` | `lfx.invite-service.get_invite` | Request/reply (consumed) | Callers send `GetInviteRequest{UID}`; reply is `GetInviteResponse` |
-| `api.GetInvitesByEmailSubject` | `lfx.invite-service.get_invites_by_email` | Request/reply (consumed) | Callers send `GetInvitesByEmailRequest{Email}`; on success reply is a bare `[]Invite` JSON array; on failure reply is `GetInvitesByEmailResponse{Error}` |
+| `api.GetInvitesByEmailSubject` | `lfx.invite-service.get_invites_by_email` | Request/reply (consumed) | Callers send `GetInvitesByEmailRequest{Email}`; reply is always `GetInvitesByEmailResponse` — on success `Invites` contains the records, on failure `Error` is set |
 | `api.InviteServiceAcceptedSubject` | `lfx.invite-service.invite_accepted` | Published (outbound) | Published after KV record is marked accepted; carries `InviteServiceAcceptedEvent` (full `Invite`) for downstream consumers. Best-effort — publish failure is logged but does not block the acceptance flow |
 | _(email service)_ | `lfx.email-service.send_email` | Request/reply (outbound) | Forward pre-rendered email to the email service for delivery |
 | `api.InviteCreatedSubject` | `lfx.invite-service.invite.created` | Published (future) | Invite issued |
@@ -209,7 +210,7 @@ All `os.Getenv` calls belong in `cmd/invite-api/service/config.go` → `AppConfi
 1. Add the subject constant and any new payload types to `pkg/api/invite.go`.
 2. Add the handler method to the relevant service in `internal/service/`.
 3. Add a queue-subscribe block in `cmd/invite-api/service/subscriptions.go` and append the stop func. OTel trace context extraction is handled automatically by `Client.QueueSubscribe` — handlers receive a `ctx` with the span and a `port.InboundMessage` (not `*nats.Msg`). Use `msg.Data()` to read the payload and `msg.Reply(ctx, data)` to send the response.
-4. Wire any new infrastructure (e.g. a new KV binding) in `cmd/invite-api/service/implementations.go`.
+4. Wire any new infrastructure (e.g. a new KV binding) in `cmd/invite-api/service/server.go` → `NewServerFromConfig`.
 
 For a **JetStream durable consumer** (ACK/NAK semantics), use `Client.ConsumeWithJetStream` instead of `QueueSubscribe`. Messages are ACKed on handler success and NAKed on handler error; configure `ConsumerConfig.MaxDeliver` and `AckWait` to control redelivery.
 

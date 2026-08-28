@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
 	intsvc "github.com/linuxfoundation/lfx-v2-invite-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
@@ -30,11 +29,11 @@ const (
 	kvHandlerTimeout = 10 * time.Second
 )
 
-// StartSubscriptions binds all NATS subscribers and returns their stop functions.
+// Start binds all NATS subscribers and returns their stop functions.
 // If any subscription fails to start, all previously started subscriptions are
 // stopped before the error is returned so the process is never left in a
 // partially-initialized state with live consumers.
-func StartSubscriptions(ctx context.Context) ([]func(), error) {
+func (s *Server) Start(ctx context.Context) ([]func(), error) {
 	stopFuncs := make([]func(), 0, 4)
 
 	// stopAll is called on any startup error to unsubscribe consumers already registered.
@@ -45,12 +44,12 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	}
 
 	// --- send_invite: request/reply from resource services ---
-	stopSend, err := NATSClient.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopSend, err := s.subscriber.QueueSubscribe(api.SendInviteSubject, sendInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, msgHandlerTimeout)
 		defer cancel()
 
-		var req model.SendInviteRequest
-		if err := json.Unmarshal(msg.Data(), &req); err != nil {
+		var apiReq api.SendInviteRequest
+		if err := json.Unmarshal(msg.Data(), &apiReq); err != nil {
 			slog.ErrorContext(msgCtx, "send_invite: failed to unmarshal payload",
 				"subject", msg.Subject(),
 				"error", err,
@@ -58,8 +57,9 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			replyError(msgCtx, msg, "malformed_request")
 			return
 		}
+		req := apiToModelRequest(apiReq)
 
-		result, handlerErr := NotificationSvc.HandleSendInvite(msgCtx, &req)
+		result, handlerErr := s.notifSvc.HandleSendInvite(msgCtx, &req)
 
 		var resp api.SendInviteResponse
 		if handlerErr != nil {
@@ -106,7 +106,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "send-invite")
 
 	// --- invite.accepted: fire-and-forget event from self-serve web app ---
-	stopAccepted, err := NATSClient.QueueSubscribe(api.InviteAcceptedSubject, acceptanceQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopAccepted, err := s.subscriber.QueueSubscribe(api.InviteAcceptedSubject, acceptanceQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
@@ -120,7 +120,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		AcceptanceSvc.HandleInviteAccepted(msgCtx, evt)
+		s.acceptSvc.HandleInviteAccepted(msgCtx, evt)
 	})
 	if err != nil {
 		stopAll()
@@ -130,7 +130,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "invite-accepted")
 
 	// --- get_invite: request/reply — fetch invite record by UID ---
-	stopGetInvite, err := NATSClient.QueueSubscribe(api.GetInviteSubject, getInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopGetInvite, err := s.subscriber.QueueSubscribe(api.GetInviteSubject, getInviteQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
@@ -141,17 +141,15 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		if req.UID == "" {
-			replyGetInviteError(msgCtx, msg, "invalid_request")
-			return
-		}
-
-		invite, err := InviteReadSvc.GetInvite(msgCtx, req.UID)
+		invite, err := s.readSvc.GetInvite(msgCtx, req.UID)
 		var resp api.GetInviteResponse
 		if err != nil {
-			if errors.Is(err, intsvc.ErrInviteNotFound) {
+			switch {
+			case errors.Is(err, intsvc.ErrInviteNotFound):
 				resp.Error = "not_found"
-			} else {
+			case errors.Is(err, intsvc.ErrInvalidRequest):
+				resp.Error = "invalid_request"
+			default:
 				slog.ErrorContext(msgCtx, "get_invite: store error", "invite_uid", req.UID, "error", err)
 				resp.Error = "internal_error"
 			}
@@ -177,7 +175,7 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 	slog.InfoContext(ctx, "subscription started", "name", "get-invite")
 
 	// --- get_invites_by_email: request/reply — fetch invite records by email ---
-	stopGetByEmail, err := NATSClient.QueueSubscribe(api.GetInvitesByEmailSubject, getByEmailQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
+	stopGetByEmail, err := s.subscriber.QueueSubscribe(api.GetInvitesByEmailSubject, getByEmailQueueGroup, func(ctx context.Context, msg port.InboundMessage) {
 		msgCtx, cancel := context.WithTimeout(ctx, kvHandlerTimeout)
 		defer cancel()
 
@@ -188,19 +186,18 @@ func StartSubscriptions(ctx context.Context) ([]func(), error) {
 			return
 		}
 
-		if req.Email == "" {
-			replyGetByEmailError(msgCtx, msg, "invalid_request")
-			return
-		}
-
-		invites, err := InviteReadSvc.GetInvitesByEmail(msgCtx, req.Email)
+		invites, err := s.readSvc.GetInvitesByEmail(msgCtx, req.Email)
 		if err != nil {
+			if errors.Is(err, intsvc.ErrInvalidRequest) {
+				replyGetByEmailError(msgCtx, msg, "invalid_request")
+				return
+			}
 			slog.ErrorContext(msgCtx, "get_invites_by_email: store error", "error", err)
 			replyGetByEmailError(msgCtx, msg, "internal_error")
 			return
 		}
 
-		data, marshalErr := json.Marshal(invites)
+		data, marshalErr := json.Marshal(api.GetInvitesByEmailResponse{Invites: invites})
 		if marshalErr != nil {
 			slog.ErrorContext(msgCtx, "get_invites_by_email: failed to marshal response", "error", marshalErr)
 			replyGetByEmailError(msgCtx, msg, "internal_error")
