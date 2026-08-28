@@ -458,12 +458,13 @@ nats kv add invites --history=20 --storage=file
 │       ├── main.go                      # OTel bootstrap, signal handling, graceful shutdown
 │       └── service/
 │           ├── config.go            # AppConfig read from env vars
-│           ├── implementations.go   # Infrastructure wiring (NATS, KV, services)
-│           └── subscriptions.go     # NATS subscriber registration (all 4 subjects)
+│           ├── server.go            # Server struct; NewServer (injection) + NewServerFromConfig (production wiring) + Close
+│           ├── request_mapping.go   # apiToModelRequest — api→model converter at the transport seam
+│           └── subscriptions.go     # (s *Server) Start — NATS subscriber registration (all 4 subjects)
 ├── internal/
 │   ├── domain/
 │   │   ├── model/                   # Domain types: InviteRecord, SendInviteRequest, roles
-│   │   └── port/                    # Interfaces: EmailSender, InviteStore; mocks/
+│   │   └── port/                    # Interfaces: EmailSender, InviteStore, EventPublisher, Subscriber, InboundMessage; mocks/
 │   ├── infrastructure/
 │   │   ├── auth/                    # JWT link generator (HS256)
 │   │   ├── nats/                    # NATS client, NATSEmailSender, NATSInviteRepository
@@ -575,7 +576,7 @@ make check
 1. Add the handler method to the appropriate service in `internal/service/`.
 2. Add a queue-subscribe block in `cmd/invite-api/service/subscriptions.go` and append the stop func.
 3. Add subject constant + payload types to `pkg/api/invite.go`.
-4. Wire any new infrastructure (e.g. a KV binding) in `cmd/invite-api/service/implementations.go`.
+4. Wire any new infrastructure (e.g. a KV binding) in `cmd/invite-api/service/server.go` → `NewServerFromConfig`.
 
 ## Releases
 
