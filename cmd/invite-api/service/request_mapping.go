@@ -16,17 +16,18 @@ func apiToModelRequest(r api.SendInviteRequest) model.SendInviteRequest {
 	m := model.SendInviteRequest{
 		// Deprecated scalars — copied verbatim; resolution logic lives in the
 		// Resolved*() methods on model.SendInviteRequest and is unchanged.
-		RecipientEmail: r.RecipientEmail, //nolint:staticcheck
-		RecipientName:  r.RecipientName,  //nolint:staticcheck
-		InviterName:    r.InviterName,    //nolint:staticcheck
-		ResourceUID:    r.ResourceUID,    //nolint:staticcheck
-		ResourceName:   r.ResourceName,   //nolint:staticcheck
-		ResourceType:   r.ResourceType,   //nolint:staticcheck
-		Role:           r.Role,
-		ReturnURL:      r.ReturnURL,
-		OrgName:        r.OrgName,
-		ExpirationDays: r.ExpirationDays,
-		CustomClaims:   r.CustomClaims,
+		RecipientEmail:      r.RecipientEmail, //nolint:staticcheck
+		RecipientName:       r.RecipientName,  //nolint:staticcheck
+		InviterName:         r.InviterName,    //nolint:staticcheck
+		ResourceUID:         r.ResourceUID,    //nolint:staticcheck
+		ResourceName:        r.ResourceName,   //nolint:staticcheck
+		ResourceType:        r.ResourceType,   //nolint:staticcheck
+		Role:                r.Role,
+		ReturnURL:           r.ReturnURL,
+		OrgName:             r.OrgName,
+		ExpirationDays:      r.ExpirationDays,
+		CustomClaims:        r.CustomClaims,
+		RecipientHasAccount: r.RecipientHasAccount,
 	}
 	if r.Recipient != nil {
 		m.Recipient = &model.Recipient{

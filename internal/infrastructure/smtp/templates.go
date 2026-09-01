@@ -32,15 +32,16 @@ var (
 
 // inviteEmailData is the template execution context.
 type inviteEmailData struct {
-	RecipientFirstName string
-	InviterFirstName   string
-	InviterFullName    string
-	ResourceName       string
-	ResourceType       string
-	Role               string
-	ReturnURL          string
-	OrgName            string
-	HasInviter         bool
+	RecipientFirstName  string
+	InviterFirstName    string
+	InviterFullName     string
+	ResourceName        string
+	ResourceType        string
+	Role                string
+	ReturnURL           string
+	OrgName             string
+	HasInviter          bool
+	RecipientHasAccount bool
 }
 
 func buildTemplateData(payload model.InviteEmailPayload) inviteEmailData {
@@ -49,15 +50,16 @@ func buildTemplateData(payload model.InviteEmailPayload) inviteEmailData {
 		orgName = "LFX"
 	}
 	return inviteEmailData{
-		RecipientFirstName: firstName(payload.RecipientName),
-		InviterFirstName:   firstName(payload.InviterName),
-		InviterFullName:    payload.InviterName,
-		ResourceName:       payload.ResourceName,
-		ResourceType:       payload.ResourceType,
-		Role:               payload.Role,
-		ReturnURL:          payload.InviteLink,
-		OrgName:            orgName,
-		HasInviter:         payload.InviterName != "",
+		RecipientFirstName:  firstName(payload.RecipientName),
+		InviterFirstName:    firstName(payload.InviterName),
+		InviterFullName:     payload.InviterName,
+		ResourceName:        payload.ResourceName,
+		ResourceType:        payload.ResourceType,
+		Role:                payload.Role,
+		ReturnURL:           payload.InviteLink,
+		OrgName:             orgName,
+		HasInviter:          payload.InviterName != "",
+		RecipientHasAccount: payload.RecipientHasAccount,
 	}
 }
 

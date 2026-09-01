@@ -2,7 +2,7 @@ Hi{{if .RecipientFirstName}} {{.RecipientFirstName}}{{end}},
 
 {{if .HasInviter}}{{.InviterFullName}} invited you to join the {{.ResourceName}}{{if .ResourceType}} {{.ResourceType}}{{end}} on LFX with the {{.Role}} role.{{else}}You have been invited to join the {{.ResourceName}}{{if .ResourceType}} {{.ResourceType}}{{end}} on LFX with the {{.Role}} role.{{end}}
 
-You'll need an LFX account to get started.
+{{if not .RecipientHasAccount}}You'll need an LFX account to get started.
 
 Getting started takes about a minute:
   1. Click the link below to accept the invitation
@@ -10,7 +10,8 @@ Getting started takes about a minute:
   3. You'll be taken straight to the {{.ResourceName}}{{if .ResourceType}} {{.ResourceType}}{{end}} dashboard
 
 Accept invitation & create account:
-{{.ReturnURL}}
+{{else}}Accept invitation:
+{{end}}{{.ReturnURL}}
 
 Thanks,
 The {{.OrgName}} Team

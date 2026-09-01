@@ -132,15 +132,16 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	// Build the typed email payload from pre-resolved fields. InviteLink is the signed
 	// JWT URL — distinct from destURL, which is the raw destination stored in KV.
 	emailPayload := model.InviteEmailPayload{
-		RecipientEmail: canonicalEmail,
-		RecipientName:  req.ResolvedRecipientName(),
-		InviterName:    req.ResolvedInviterName(),
-		ResourceName:   req.ResolvedResourceName(),
-		ResourceType:   req.ResolvedResourceType(),
-		ResourceUID:    resourceUID,
-		Role:           roleStr,
-		OrgName:        req.OrgName,
-		InviteLink:     inviteLink,
+		RecipientEmail:      canonicalEmail,
+		RecipientName:       req.ResolvedRecipientName(),
+		InviterName:         req.ResolvedInviterName(),
+		ResourceName:        req.ResolvedResourceName(),
+		ResourceType:        req.ResolvedResourceType(),
+		ResourceUID:         resourceUID,
+		Role:                roleStr,
+		OrgName:             req.OrgName,
+		InviteLink:          inviteLink,
+		RecipientHasAccount: req.RecipientHasAccount,
 	}
 
 	// Persist the invite record before sending the email. If the store write fails

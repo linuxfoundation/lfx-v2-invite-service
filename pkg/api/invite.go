@@ -178,6 +178,10 @@ type SendInviteRequest struct {
 	// Maps with more than 16 entries or entries whose key exceeds 64 bytes or value
 	// exceeds 1024 bytes are rejected with an error.
 	CustomClaims map[string]string `json:"custom_claims,omitempty"`
+	// RecipientHasAccount indicates whether the recipient already has an LFX account.
+	// When true the invite service renders the existing-user email template (no
+	// "create account" CTA). When false or omitted the new-user template is used.
+	RecipientHasAccount bool `json:"recipient_has_account,omitempty"`
 }
 
 // InviteAcceptedEvent is the payload published on InviteAcceptedSubject by the
