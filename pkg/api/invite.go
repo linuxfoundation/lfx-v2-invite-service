@@ -135,8 +135,10 @@ type SendInviteResponse struct {
 }
 
 // SendInviteRequest is the NATS payload published on SendInviteSubject by
-// resource services to request that the invite service sends an invite email
-// to a user who does not yet have an LFID.
+// resource services to request that the invite service sends an invite email.
+// The request supports both new users (no LFX account) and existing users
+// (already have an LFID); set RecipientHasAccount to select the appropriate
+// email template.
 //
 // Preferred: populate the structured Recipient, Inviter, and Resource objects.
 // Deprecated fields (RecipientEmail, RecipientName, InviterName, ResourceUID,

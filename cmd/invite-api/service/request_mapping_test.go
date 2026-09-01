@@ -36,17 +36,18 @@ func TestAPIToModelRequest_MapsAllFields(t *testing.T) {
 			Name: "My Project",
 			Type: "project",
 		},
-		RecipientEmail: "scalar@example.com", //nolint:staticcheck
-		RecipientName:  "Scalar Alice",       //nolint:staticcheck
-		InviterName:    "Scalar Bob",         //nolint:staticcheck
-		ResourceUID:    "scalar-res",         //nolint:staticcheck
-		ResourceName:   "Scalar Project",     //nolint:staticcheck
-		ResourceType:   "committee",          //nolint:staticcheck
-		Role:           "Member",
-		ReturnURL:      "https://app.lfx.dev/return",
-		OrgName:        "The Linux Foundation",
-		ExpirationDays: 14,
-		CustomClaims:   map[string]string{"committee_invite_uid": "inv-abc"},
+		RecipientEmail:      "scalar@example.com", //nolint:staticcheck
+		RecipientName:       "Scalar Alice",       //nolint:staticcheck
+		InviterName:         "Scalar Bob",         //nolint:staticcheck
+		ResourceUID:         "scalar-res",         //nolint:staticcheck
+		ResourceName:        "Scalar Project",     //nolint:staticcheck
+		ResourceType:        "committee",          //nolint:staticcheck
+		Role:                "Member",
+		ReturnURL:           "https://app.lfx.dev/return",
+		OrgName:             "The Linux Foundation",
+		ExpirationDays:      14,
+		CustomClaims:        map[string]string{"committee_invite_uid": "inv-abc"},
+		RecipientHasAccount: true,
 	}
 
 	got := apiToModelRequest(in)
@@ -134,6 +135,9 @@ func TestAPIToModelRequest_MapsAllFields(t *testing.T) {
 	}
 	if got.CustomClaims["committee_invite_uid"] != "inv-abc" {
 		t.Errorf("CustomClaims[committee_invite_uid]: got %q, want %q", got.CustomClaims["committee_invite_uid"], "inv-abc")
+	}
+	if !got.RecipientHasAccount {
+		t.Error("RecipientHasAccount: got false, want true")
 	}
 }
 

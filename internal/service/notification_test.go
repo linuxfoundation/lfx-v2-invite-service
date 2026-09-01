@@ -510,6 +510,28 @@ func TestHandleSendInvite_LinkPayloadMapping(t *testing.T) {
 	}
 }
 
+// TestHandleSendInvite_RecipientHasAccount_PropagatesFlag verifies that when the
+// caller sets RecipientHasAccount=true the flag reaches the EmailSender unchanged,
+// so the invite service can select the correct email template.
+func TestHandleSendInvite_RecipientHasAccount_PropagatesFlag(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.RecipientHasAccount = true
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email send, got %d", len(email.Calls))
+	}
+	if !email.Calls[0].RecipientHasAccount {
+		t.Error("RecipientHasAccount: got false in email payload, want true")
+	}
+}
+
 // M18.3: when SendNotification fails, a DeliveryStateFailed audit entry is emitted.
 func TestHandleSendInvite_EmailSendError_AuditsFailed(t *testing.T) {
 	buf := captureLogs(t)
