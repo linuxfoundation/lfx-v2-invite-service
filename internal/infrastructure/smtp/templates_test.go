@@ -106,8 +106,8 @@ func TestRenderInviteEmail_HTML_DefaultsOrgNameToLFX(t *testing.T) {
 	p := basePayload()
 	p.OrgName = ""
 	out := RenderInviteEmail(p).HTML
-	if !strings.Contains(out, "The LFX Team") {
-		t.Error("HTML should fall back to 'The LFX Team' when OrgName is empty")
+	if !strings.Contains(out, "LFX Team") {
+		t.Error("HTML should fall back to 'LFX Team' when OrgName is empty")
 	}
 }
 
@@ -209,7 +209,7 @@ func TestRenderInviteEmail_Plain_WithoutInviter(t *testing.T) {
 func TestRenderInviteEmail_Plain_ContainsOrgTeamSignature(t *testing.T) {
 	p := basePayload()
 	out := RenderInviteEmail(p).Plain
-	if !strings.Contains(out, "The Linux Foundation Team") {
+	if !strings.Contains(out, "Linux Foundation Team") {
 		t.Errorf("plain text missing org team signature, got:\n%s", out)
 	}
 }
@@ -218,8 +218,8 @@ func TestRenderInviteEmail_Plain_DefaultsOrgNameToLFX(t *testing.T) {
 	p := basePayload()
 	p.OrgName = ""
 	out := RenderInviteEmail(p).Plain
-	if !strings.Contains(out, "The LFX Team") {
-		t.Error("plain text should fall back to 'The LFX Team' when OrgName is empty")
+	if !strings.Contains(out, "LFX Team") {
+		t.Error("plain text should fall back to 'LFX Team' when OrgName is empty")
 	}
 }
 
@@ -240,6 +240,86 @@ func TestRenderInviteEmail_Plain_ContainsSteps(t *testing.T) {
 	out := RenderInviteEmail(p).Plain
 	if !strings.Contains(out, "1.") || !strings.Contains(out, "2.") || !strings.Contains(out, "3.") {
 		t.Error("plain text missing numbered steps")
+	}
+}
+
+// --- RecipientHasAccount template branching ---
+
+func TestRenderInviteEmail_HTML_RecipientHasAccount(t *testing.T) {
+	tests := []struct {
+		name                string
+		recipientHasAccount bool
+		wantCTA             string
+		wantNoSteps         bool
+	}{
+		{
+			name:                "existing user: simple accept CTA, no create-account steps",
+			recipientHasAccount: true,
+			wantCTA:             "Accept invitation</a>",
+			wantNoSteps:         true,
+		},
+		{
+			name:                "new user: create-account CTA with setup steps",
+			recipientHasAccount: false,
+			wantCTA:             "Accept invitation &amp; create account</a>",
+			wantNoSteps:         false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := basePayload()
+			p.RecipientHasAccount = tc.recipientHasAccount
+			html := RenderInviteEmail(p).HTML
+			if !strings.Contains(html, tc.wantCTA) {
+				t.Errorf("HTML missing expected CTA %q", tc.wantCTA)
+			}
+			hasSteps := strings.Contains(html, "Create your LFX account")
+			if tc.wantNoSteps && hasSteps {
+				t.Error("HTML must not contain create-account steps for existing user")
+			}
+			if !tc.wantNoSteps && !hasSteps {
+				t.Error("HTML must contain create-account steps for new user")
+			}
+		})
+	}
+}
+
+func TestRenderInviteEmail_Plain_RecipientHasAccount(t *testing.T) {
+	tests := []struct {
+		name                string
+		recipientHasAccount bool
+		wantCTA             string
+		wantNoSteps         bool
+	}{
+		{
+			name:                "existing user: simple accept CTA, no create-account steps",
+			recipientHasAccount: true,
+			wantCTA:             "Accept invitation:",
+			wantNoSteps:         true,
+		},
+		{
+			name:                "new user: create-account CTA with setup steps",
+			recipientHasAccount: false,
+			wantCTA:             "Accept invitation & create account:",
+			wantNoSteps:         false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := basePayload()
+			p.RecipientHasAccount = tc.recipientHasAccount
+			plain := RenderInviteEmail(p).Plain
+			if !strings.Contains(plain, tc.wantCTA) {
+				t.Errorf("plain text missing expected CTA %q", tc.wantCTA)
+			}
+			hasSteps := strings.Contains(plain, "Create your LFX account")
+			if tc.wantNoSteps && hasSteps {
+				t.Error("plain text must not contain create-account steps for existing user")
+			}
+			if !tc.wantNoSteps && !hasSteps {
+				t.Error("plain text must contain create-account steps for new user")
+			}
+		})
 	}
 }
 

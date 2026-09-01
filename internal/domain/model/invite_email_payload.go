@@ -30,4 +30,7 @@ type InviteEmailPayload struct {
 	OrgName string
 	// InviteLink is the signed JWT invite URL used as the call-to-action in the email.
 	InviteLink string
+	// RecipientHasAccount indicates whether the recipient already has an LFX account.
+	// When true the template renders the existing-user variant (no "create account" CTA).
+	RecipientHasAccount bool
 }

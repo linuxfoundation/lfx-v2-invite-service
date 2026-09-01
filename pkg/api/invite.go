@@ -135,8 +135,10 @@ type SendInviteResponse struct {
 }
 
 // SendInviteRequest is the NATS payload published on SendInviteSubject by
-// resource services to request that the invite service sends an invite email
-// to a user who does not yet have an LFID.
+// resource services to request that the invite service sends an invite email.
+// The request supports both new users (no LFX account) and existing users
+// (already have an LFID); set RecipientHasAccount to select the appropriate
+// email template.
 //
 // Preferred: populate the structured Recipient, Inviter, and Resource objects.
 // Deprecated fields (RecipientEmail, RecipientName, InviterName, ResourceUID,
@@ -178,6 +180,10 @@ type SendInviteRequest struct {
 	// Maps with more than 16 entries or entries whose key exceeds 64 bytes or value
 	// exceeds 1024 bytes are rejected with an error.
 	CustomClaims map[string]string `json:"custom_claims,omitempty"`
+	// RecipientHasAccount indicates whether the recipient already has an LFX account.
+	// When true the invite service renders the existing-user email template (no
+	// "create account" CTA). When false or omitted the new-user template is used.
+	RecipientHasAccount bool `json:"recipient_has_account,omitempty"`
 }
 
 // InviteAcceptedEvent is the payload published on InviteAcceptedSubject by the

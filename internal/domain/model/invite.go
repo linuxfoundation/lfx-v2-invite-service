@@ -43,6 +43,10 @@ type SendInviteRequest struct {
 	// CustomClaims are additional string claims to embed in the signed JWT token.
 	// See pkg/api.SendInviteRequest.CustomClaims for the full contract.
 	CustomClaims map[string]string `json:"custom_claims,omitempty"`
+	// RecipientHasAccount indicates whether the recipient already has an LFX account.
+	// When true the invite service renders the existing-user email template (no
+	// "create account" CTA). When false or omitted the new-user template is used.
+	RecipientHasAccount bool `json:"recipient_has_account,omitempty"`
 }
 
 // ResolvedRecipientEmail returns the recipient email, preferring the structured
