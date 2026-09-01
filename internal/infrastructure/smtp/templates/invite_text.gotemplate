@@ -14,6 +14,6 @@ Accept invitation & create account:
 {{end}}{{.ReturnURL}}
 
 Thanks,
-The {{.OrgName}} Team
+{{.OrgName}} Team
 
 If you did not expect this email, you can safely ignore it.

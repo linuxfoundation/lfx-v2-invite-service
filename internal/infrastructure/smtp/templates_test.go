@@ -106,8 +106,8 @@ func TestRenderInviteEmail_HTML_DefaultsOrgNameToLFX(t *testing.T) {
 	p := basePayload()
 	p.OrgName = ""
 	out := RenderInviteEmail(p).HTML
-	if !strings.Contains(out, "The LFX Team") {
-		t.Error("HTML should fall back to 'The LFX Team' when OrgName is empty")
+	if !strings.Contains(out, "LFX Team") {
+		t.Error("HTML should fall back to 'LFX Team' when OrgName is empty")
 	}
 }
 
@@ -209,7 +209,7 @@ func TestRenderInviteEmail_Plain_WithoutInviter(t *testing.T) {
 func TestRenderInviteEmail_Plain_ContainsOrgTeamSignature(t *testing.T) {
 	p := basePayload()
 	out := RenderInviteEmail(p).Plain
-	if !strings.Contains(out, "The Linux Foundation Team") {
+	if !strings.Contains(out, "Linux Foundation Team") {
 		t.Errorf("plain text missing org team signature, got:\n%s", out)
 	}
 }
@@ -218,8 +218,8 @@ func TestRenderInviteEmail_Plain_DefaultsOrgNameToLFX(t *testing.T) {
 	p := basePayload()
 	p.OrgName = ""
 	out := RenderInviteEmail(p).Plain
-	if !strings.Contains(out, "The LFX Team") {
-		t.Error("plain text should fall back to 'The LFX Team' when OrgName is empty")
+	if !strings.Contains(out, "LFX Team") {
+		t.Error("plain text should fall back to 'LFX Team' when OrgName is empty")
 	}
 }
 
