@@ -582,6 +582,8 @@ make check
 
 1. Merge the PR, then create a GitHub release with a `v{version}` tag.
 2. CI builds and publishes the container image and Helm chart automatically.
+3. CI also dispatches `create-version-bump-pr.yml` on `lfx-v2-argocd` so staging
+   and prod image tags and chart pins are opened as a pull request.
 
 ## Related Services
 
