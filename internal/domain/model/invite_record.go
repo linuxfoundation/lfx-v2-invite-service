@@ -37,6 +37,10 @@ type InviteResource struct {
 	UID  string `json:"uid,omitempty"`
 	Name string `json:"name,omitempty"`
 	Type string `json:"type,omitempty"`
+	// ParentName is the display name of the parent resource (e.g. the project that
+	// owns a formation). When set, the invite email renders both names:
+	// "Formation Name formation (part of Parent Name)". Empty for top-level resources.
+	ParentName string `json:"parent_name,omitempty"`
 }
 
 // InviteRecord is the invite service's persisted record of an invite, stored in

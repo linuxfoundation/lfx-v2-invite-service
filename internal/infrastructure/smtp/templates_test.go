@@ -323,6 +323,61 @@ func TestRenderInviteEmail_Plain_RecipientHasAccount(t *testing.T) {
 	}
 }
 
+// --- ParentResourceName / HasParentResource ---
+
+func TestRenderInviteEmail_HTML_ParentResourceName_Rendered(t *testing.T) {
+	p := basePayload()
+	p.ResourceType = "formation"
+	p.ParentResourceName = "My Project"
+	out := RenderInviteEmail(p).HTML
+	if !strings.Contains(out, "part of") {
+		t.Errorf("HTML missing 'part of' parent clause, got:\n%s", out)
+	}
+	if !strings.Contains(out, "My Project") {
+		t.Errorf("HTML missing parent resource name, got output length %d", len(out))
+	}
+}
+
+func TestRenderInviteEmail_HTML_ParentResourceName_AbsentWhenEmpty(t *testing.T) {
+	p := basePayload()
+	p.ParentResourceName = ""
+	out := RenderInviteEmail(p).HTML
+	if strings.Contains(out, "part of") {
+		t.Errorf("HTML must not render parent clause when ParentResourceName is empty, got:\n%s", out)
+	}
+}
+
+func TestRenderInviteEmail_Plain_ParentResourceName_Rendered(t *testing.T) {
+	p := basePayload()
+	p.ResourceType = "formation"
+	p.ParentResourceName = "My Project"
+	out := RenderInviteEmail(p).Plain
+	if !strings.Contains(out, "part of") {
+		t.Errorf("plain text missing 'part of' parent clause")
+	}
+	if !strings.Contains(out, "My Project") {
+		t.Errorf("plain text missing parent resource name")
+	}
+}
+
+func TestRenderInviteEmail_Plain_ParentResourceName_AbsentWhenEmpty(t *testing.T) {
+	p := basePayload()
+	p.ParentResourceName = ""
+	out := RenderInviteEmail(p).Plain
+	if strings.Contains(out, "part of") {
+		t.Errorf("plain text must not render parent clause when ParentResourceName is empty, got:\n%s", out)
+	}
+}
+
+func TestRenderInviteEmail_HTML_ParentResourceName_EscapedInHTML(t *testing.T) {
+	p := basePayload()
+	p.ParentResourceName = "<script>owned</script>"
+	out := RenderInviteEmail(p).HTML
+	if strings.Contains(out, "<script>") {
+		t.Error("HTML must escape ParentResourceName containing script tags")
+	}
+}
+
 // --- Fallback internals (white-box, same package) ---
 
 func TestFallbackInviteSubject_WithInviter(t *testing.T) {

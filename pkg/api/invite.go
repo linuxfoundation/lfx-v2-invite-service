@@ -99,6 +99,12 @@ type Resource struct {
 	UID  string `json:"uid,omitempty"`
 	Name string `json:"name,omitempty"`
 	Type string `json:"type,omitempty"`
+	// ParentName is the display name of the parent resource, used when the resource
+	// is a child of another (e.g. a formation within a project). When set, the invite
+	// email names both entities: "Formation Name formation (part of Parent Name)".
+	// The invite service renders whatever string is given here — it does not interpret
+	// or validate the parent relationship.
+	ParentName string `json:"parent_name,omitempty"`
 }
 
 // InviteData holds the invite metadata returned on a successful send_invite reply.

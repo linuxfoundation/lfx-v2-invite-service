@@ -137,6 +137,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 		InviterName:         req.ResolvedInviterName(),
 		ResourceName:        req.ResolvedResourceName(),
 		ResourceType:        req.ResolvedResourceType(),
+		ParentResourceName:  req.ResolvedParentResourceName(),
 		ResourceUID:         resourceUID,
 		Role:                roleStr,
 		OrgName:             req.OrgName,
@@ -248,9 +249,10 @@ func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, canonical
 
 	// Resource uses the resolved values (scalars already normalized in the copy).
 	resource := model.InviteResource{
-		UID:  req.ResolvedResourceUID(),
-		Name: req.ResolvedResourceName(),
-		Type: req.ResolvedResourceType(),
+		UID:        req.ResolvedResourceUID(),
+		Name:       req.ResolvedResourceName(),
+		Type:       req.ResolvedResourceType(),
+		ParentName: req.ResolvedParentResourceName(),
 	}
 
 	return &model.InviteRecord{
