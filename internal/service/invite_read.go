@@ -93,6 +93,7 @@ func domainToAPIInvite(r *model.InviteRecord) api.Invite {
 		OrgName:        r.OrgName,
 		ReturnURL:      r.ReturnURL,
 		ExpirationDays: r.ExpirationDays,
+		CustomClaims:   r.CustomClaims,
 		CreatedAt:      r.CreatedAt,
 		ExpiresAt:      r.ExpiresAt,
 		AcceptedAt:     r.AcceptedAt,

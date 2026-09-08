@@ -57,6 +57,12 @@ type InviteRecord struct {
 	ReturnURL      string `json:"return_url,omitempty"`
 	ExpirationDays int    `json:"expiration_days,omitempty"`
 
+	// CustomClaims are the resource-specific string claims that were embedded in the
+	// signed JWT invite token. They are persisted here so that downstream consumers of
+	// InviteServiceAcceptedEvent receive them without performing a separate lookup.
+	// Example keys used by formation-service: "formation_invite_uid", "item_uids".
+	CustomClaims map[string]string `json:"custom_claims,omitempty"`
+
 	CreatedAt  time.Time  `json:"created_at"`
 	ExpiresAt  time.Time  `json:"expires_at"`
 	AcceptedAt *time.Time `json:"accepted_at,omitempty"`

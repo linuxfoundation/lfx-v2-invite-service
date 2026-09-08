@@ -261,6 +261,7 @@ func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, canonical
 		OrgName:        req.OrgName,
 		ReturnURL:      destURL,
 		ExpirationDays: req.ExpirationDays,
+		CustomClaims:   req.CustomClaims,
 		CreatedAt:      time.Now(),
 		ExpiresAt:      expiresAt,
 	}

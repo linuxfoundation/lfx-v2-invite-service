@@ -532,6 +532,64 @@ func TestHandleSendInvite_RecipientHasAccount_PropagatesFlag(t *testing.T) {
 	}
 }
 
+// TestHandleSendInvite_CustomClaimsPersisted verifies that custom claims supplied by
+// the caller are stored in the InviteRecord so that downstream consumers of
+// InviteServiceAcceptedEvent receive them without a separate lookup.
+func TestHandleSendInvite_CustomClaimsPersisted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	req.CustomClaims = map[string]string{
+		"formation_invite_uid": "form-inv-xyz",
+		"item_uids":            "uid-1,uid-2,uid-3",
+	}
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	record := store.CreateCalls[0]
+	if record.CustomClaims == nil {
+		t.Fatal("CustomClaims in stored record is nil, want non-nil map")
+	}
+	if got := record.CustomClaims["formation_invite_uid"]; got != "form-inv-xyz" {
+		t.Errorf("CustomClaims[formation_invite_uid] = %q, want %q", got, "form-inv-xyz")
+	}
+	if got := record.CustomClaims["item_uids"]; got != "uid-1,uid-2,uid-3" {
+		t.Errorf("CustomClaims[item_uids] = %q, want %q", got, "uid-1,uid-2,uid-3")
+	}
+}
+
+// TestHandleSendInvite_NilCustomClaims_NotPersisted verifies that when no custom
+// claims are supplied the stored record has a nil map (not an empty map), so the
+// KV JSON omits the field entirely.
+func TestHandleSendInvite_NilCustomClaims_NotPersisted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	// req.CustomClaims is intentionally nil.
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	if store.CreateCalls[0].CustomClaims != nil {
+		t.Errorf("CustomClaims should be nil when not supplied, got %v", store.CreateCalls[0].CustomClaims)
+	}
+}
+
 // M18.3: when SendNotification fails, a DeliveryStateFailed audit entry is emitted.
 func TestHandleSendInvite_EmailSendError_AuditsFailed(t *testing.T) {
 	buf := captureLogs(t)
