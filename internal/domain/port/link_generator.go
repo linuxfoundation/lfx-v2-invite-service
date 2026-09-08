@@ -42,8 +42,11 @@ type LinkPayload struct {
 }
 
 // LinkGenerator generates a signed invite link for a given recipient and
-// destination. It returns the full invite URL and the invite UUID (jti) so
-// callers can store the UUID and correlate it with the KV record.
+// destination. It returns the full invite URL, the invite UUID (jti), and
+// the map of custom claims that were actually embedded in the JWT (reserved
+// keys stripped). Callers should persist acceptedClaims rather than
+// filtering the input themselves, so the stored record stays in sync with
+// what the token carries even if the reserved-key set changes in future.
 type LinkGenerator interface {
-	Generate(ctx context.Context, p LinkPayload) (link, inviteUID string, expiresAt time.Time, err error)
+	Generate(ctx context.Context, p LinkPayload) (link, inviteUID string, expiresAt time.Time, acceptedClaims map[string]string, err error)
 }

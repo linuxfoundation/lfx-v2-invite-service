@@ -232,10 +232,14 @@ func TestInviteReadService_GetInvite_ConvertsAllFields(t *testing.T) {
 		OrgName:        "The Linux Foundation",
 		ReturnURL:      "https://app.lfx.dev/project",
 		ExpirationDays: 30,
-		CreatedAt:      now,
-		ExpiresAt:      now.Add(30 * 24 * time.Hour),
-		AcceptedAt:     &accepted,
-		AcceptedBy:     "alice-lfid",
+		CustomClaims: map[string]string{
+			"formation_invite_uid": "form-inv-abc",
+			"item_uids":            "uid-a,uid-b",
+		},
+		CreatedAt:  now,
+		ExpiresAt:  now.Add(30 * 24 * time.Hour),
+		AcceptedAt: &accepted,
+		AcceptedBy: "alice-lfid",
 	}
 
 	store := &mocks.InviteStore{
@@ -266,5 +270,14 @@ func TestInviteReadService_GetInvite_ConvertsAllFields(t *testing.T) {
 	}
 	if inv.AcceptedAt == nil || !inv.AcceptedAt.Equal(accepted) {
 		t.Errorf("AcceptedAt: got %v, want %v", inv.AcceptedAt, accepted)
+	}
+	if inv.CustomClaims == nil {
+		t.Fatal("CustomClaims: got nil, want non-nil map")
+	}
+	if got := inv.CustomClaims["formation_invite_uid"]; got != "form-inv-abc" {
+		t.Errorf("CustomClaims[formation_invite_uid]: got %q, want %q", got, "form-inv-abc")
+	}
+	if got := inv.CustomClaims["item_uids"]; got != "uid-a,uid-b" {
+		t.Errorf("CustomClaims[item_uids]: got %q, want %q", got, "uid-a,uid-b")
 	}
 }

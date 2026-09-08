@@ -55,12 +55,14 @@ var reservedClaims = map[string]struct{}{
 // claims are ignored (with a warning log) to prevent claim hijacking. Claims that
 // exceed the count (maxCustomClaims), key-length (maxCustomClaimKeyLen), or
 // value-length (maxCustomClaimValueLen) limits cause Generate to return an error.
-// Returns the full invite URL and the invite UUID (jti) so callers can store the UUID.
+// Returns the full invite URL, the invite UUID (jti), and the accepted custom claims
+// map (reserved keys stripped, nil when none were accepted) so callers can persist
+// exactly what landed in the JWT without duplicating the reserved-key filter.
 // The returned URL is: {inviteLinkBaseURL}/invite?token={signedJWT}
 //
 // Verifier note: the self-serve web app MUST validate with
 // jwt.WithValidMethods([]string{"HS256"}) to prevent algorithm-confusion attacks.
-func (g *LinkGenerator) Generate(ctx context.Context, p port.LinkPayload) (link, inviteUID string, expiresAt time.Time, err error) {
+func (g *LinkGenerator) Generate(ctx context.Context, p port.LinkPayload) (link, inviteUID string, expiresAt time.Time, acceptedClaims map[string]string, err error) {
 	now := time.Now()
 	inviteUID = uuid.NewString()
 	ttl := tokenTTL
@@ -95,27 +97,31 @@ func (g *LinkGenerator) Generate(ctx context.Context, p port.LinkPayload) (link,
 		claims["resource_type"] = p.ResourceType
 	}
 	if len(p.CustomClaims) > maxCustomClaims {
-		return "", "", time.Time{}, fmt.Errorf("%w: too many entries (%d > %d)", port.ErrInvalidCustomClaims, len(p.CustomClaims), maxCustomClaims)
+		return "", "", time.Time{}, nil, fmt.Errorf("%w: too many entries (%d > %d)", port.ErrInvalidCustomClaims, len(p.CustomClaims), maxCustomClaims)
 	}
 	for k, v := range p.CustomClaims {
 		if len(k) > maxCustomClaimKeyLen {
-			return "", "", time.Time{}, fmt.Errorf("%w: key %q exceeds max length (%d > %d)", port.ErrInvalidCustomClaims, k, len(k), maxCustomClaimKeyLen)
+			return "", "", time.Time{}, nil, fmt.Errorf("%w: key %q exceeds max length (%d > %d)", port.ErrInvalidCustomClaims, k, len(k), maxCustomClaimKeyLen)
 		}
 		if len(v) > maxCustomClaimValueLen {
-			return "", "", time.Time{}, fmt.Errorf("%w: value for key %q exceeds max length (%d > %d)", port.ErrInvalidCustomClaims, k, len(v), maxCustomClaimValueLen)
+			return "", "", time.Time{}, nil, fmt.Errorf("%w: value for key %q exceeds max length (%d > %d)", port.ErrInvalidCustomClaims, k, len(v), maxCustomClaimValueLen)
 		}
 		if _, reserved := reservedClaims[k]; reserved {
 			slog.WarnContext(ctx, "custom claim key is reserved and will be ignored", "key", k)
 			continue
 		}
 		claims[k] = v
+		if acceptedClaims == nil {
+			acceptedClaims = make(map[string]string)
+		}
+		acceptedClaims[k] = v
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString(g.secret)
 	if err != nil {
-		return "", "", time.Time{}, fmt.Errorf("sign invite token: %w", err)
+		return "", "", time.Time{}, nil, fmt.Errorf("sign invite token: %w", err)
 	}
 
-	return g.inviteLinkBaseURL + "/invite?token=" + signed, inviteUID, expiresAt, nil
+	return g.inviteLinkBaseURL + "/invite?token=" + signed, inviteUID, expiresAt, acceptedClaims, nil
 }

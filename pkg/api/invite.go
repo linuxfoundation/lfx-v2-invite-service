@@ -120,10 +120,15 @@ type Invite struct {
 	OrgName        string       `json:"org_name,omitempty"`
 	ReturnURL      string       `json:"return_url,omitempty"`
 	ExpirationDays int          `json:"expiration_days,omitempty"`
-	CreatedAt      time.Time    `json:"created_at"`
-	ExpiresAt      time.Time    `json:"expires_at"`
-	AcceptedAt     *time.Time   `json:"accepted_at,omitempty"`
-	AcceptedBy     string       `json:"accepted_by,omitempty"`
+	// CustomClaims are the resource-specific string claims that were embedded in the
+	// signed JWT invite token. Downstream consumers of InviteServiceAcceptedEvent
+	// receive them here without needing a separate invite lookup.
+	// Example keys used by formation-service: "formation_invite_uid", "item_uids".
+	CustomClaims map[string]string `json:"custom_claims,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
+	ExpiresAt    time.Time         `json:"expires_at"`
+	AcceptedAt   *time.Time        `json:"accepted_at,omitempty"`
+	AcceptedBy   string            `json:"accepted_by,omitempty"`
 }
 
 // SendInviteResponse is the reply payload returned by the invite service on

@@ -29,8 +29,8 @@ type noopLinkGenerator struct{}
 // errorLinkGenerator always returns an error from Generate.
 type errorLinkGenerator struct{ err error }
 
-func (e *errorLinkGenerator) Generate(_ context.Context, _ port.LinkPayload) (string, string, time.Time, error) {
-	return "", "", time.Time{}, e.err
+func (e *errorLinkGenerator) Generate(_ context.Context, _ port.LinkPayload) (string, string, time.Time, map[string]string, error) {
+	return "", "", time.Time{}, nil, e.err
 }
 
 // captureLogs redirects the slog default logger to a buffer for the duration of the test
@@ -44,8 +44,12 @@ func captureLogs(t *testing.T) *bytes.Buffer {
 	return buf
 }
 
-func (n *noopLinkGenerator) Generate(_ context.Context, p port.LinkPayload) (string, string, time.Time, error) {
-	return testBaseURL + "/invite?token=test-token-for-" + p.RecipientEmail, "test-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
+func (n *noopLinkGenerator) Generate(_ context.Context, p port.LinkPayload) (string, string, time.Time, map[string]string, error) {
+	var accepted map[string]string
+	if len(p.CustomClaims) > 0 {
+		accepted = p.CustomClaims
+	}
+	return testBaseURL + "/invite?token=test-token-for-" + p.RecipientEmail, "test-invite-uid", time.Now().Add(7 * 24 * time.Hour), accepted, nil
 }
 
 func newService(email *mocks.EmailSender) *NotificationService {
@@ -452,9 +456,19 @@ type spyLinkGenerator struct {
 	captured port.LinkPayload
 }
 
-func (s *spyLinkGenerator) Generate(_ context.Context, p port.LinkPayload) (string, string, time.Time, error) {
+func (s *spyLinkGenerator) Generate(_ context.Context, p port.LinkPayload) (string, string, time.Time, map[string]string, error) {
 	s.captured = p
-	return testBaseURL + "/invite?token=spy-token-for-" + p.RecipientEmail, "spy-invite-uid", time.Now().Add(7 * 24 * time.Hour), nil
+	return testBaseURL + "/invite?token=spy-token-for-" + p.RecipientEmail, "spy-invite-uid", time.Now().Add(7 * 24 * time.Hour), p.CustomClaims, nil
+}
+
+// customLinkGenerator delegates Generate to an injected function, allowing
+// individual tests to control exactly what acceptedClaims the generator returns.
+type customLinkGenerator struct {
+	generateFn func(ctx context.Context, p port.LinkPayload) (string, string, time.Time, map[string]string, error)
+}
+
+func (c *customLinkGenerator) Generate(ctx context.Context, p port.LinkPayload) (string, string, time.Time, map[string]string, error) {
+	return c.generateFn(ctx, p)
 }
 
 // TestHandleSendInvite_LinkPayloadMapping verifies that HandleSendInvite maps every
@@ -529,6 +543,147 @@ func TestHandleSendInvite_RecipientHasAccount_PropagatesFlag(t *testing.T) {
 	}
 	if !email.Calls[0].RecipientHasAccount {
 		t.Error("RecipientHasAccount: got false in email payload, want true")
+	}
+}
+
+// TestHandleSendInvite_CustomClaimsPersisted verifies that custom claims supplied by
+// the caller are stored in the InviteRecord so that downstream consumers of
+// InviteServiceAcceptedEvent receive them without a separate lookup.
+func TestHandleSendInvite_CustomClaimsPersisted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	req.CustomClaims = map[string]string{
+		"formation_invite_uid": "form-inv-xyz",
+		"item_uids":            "uid-1,uid-2,uid-3",
+	}
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	record := store.CreateCalls[0]
+	if record.CustomClaims == nil {
+		t.Fatal("CustomClaims in stored record is nil, want non-nil map")
+	}
+	if got := record.CustomClaims["formation_invite_uid"]; got != "form-inv-xyz" {
+		t.Errorf("CustomClaims[formation_invite_uid] = %q, want %q", got, "form-inv-xyz")
+	}
+	if got := record.CustomClaims["item_uids"]; got != "uid-1,uid-2,uid-3" {
+		t.Errorf("CustomClaims[item_uids] = %q, want %q", got, "uid-1,uid-2,uid-3")
+	}
+}
+
+// TestHandleSendInvite_NilCustomClaims_NotPersisted verifies that when no custom
+// claims are supplied the stored record has a nil map (not an empty map), so the
+// KV JSON omits the field entirely.
+func TestHandleSendInvite_NilCustomClaims_NotPersisted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	// req.CustomClaims is intentionally nil.
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	if store.CreateCalls[0].CustomClaims != nil {
+		t.Errorf("CustomClaims should be nil when not supplied, got %v", store.CreateCalls[0].CustomClaims)
+	}
+}
+
+// TestHandleSendInvite_EmptyCustomClaims_NotPersisted verifies that an explicitly
+// supplied empty map is treated the same as nil — the stored record has a nil
+// CustomClaims field so the KV JSON omits it entirely.
+func TestHandleSendInvite_EmptyCustomClaims_NotPersisted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	req.CustomClaims = map[string]string{} // explicit empty map
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	if store.CreateCalls[0].CustomClaims != nil {
+		t.Errorf("CustomClaims should be nil for empty map input, got %v", store.CreateCalls[0].CustomClaims)
+	}
+}
+
+// TestHandleSendInvite_ReservedCustomClaimsFiltered verifies that notification.go
+// persists exactly what the link generator returns in acceptedClaims — if the
+// generator drops reserved keys, the stored record must not contain them.
+// (The generator's own filtering logic is tested in auth/generator_test.go.)
+func TestHandleSendInvite_ReservedCustomClaimsFiltered(t *testing.T) {
+	// filteringGen simulates a generator that strips reserved keys before
+	// returning acceptedClaims, just as auth.LinkGenerator does in production.
+	reserved := map[string]struct{}{
+		"email": {}, "role": {}, "resource_uid": {},
+	}
+	filteringGen := &customLinkGenerator{
+		generateFn: func(_ context.Context, p port.LinkPayload) (string, string, time.Time, map[string]string, error) {
+			accepted := make(map[string]string)
+			for k, v := range p.CustomClaims {
+				if _, isReserved := reserved[k]; !isReserved {
+					accepted[k] = v
+				}
+			}
+			if len(accepted) == 0 {
+				accepted = nil
+			}
+			return testBaseURL + "/invite?token=filter-test", "filter-uid", time.Now().Add(7 * 24 * time.Hour), accepted, nil
+		},
+	}
+
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := NewNotificationService(email, filteringGen, store, NotificationConfig{DefaultReturnURL: testBaseURL})
+
+	req := baseInviteRequest()
+	req.CustomClaims = map[string]string{
+		"formation_invite_uid": "form-inv-xyz", // should be kept
+		"email":                "evil@x.com",   // reserved — generator drops it
+		"role":                 "Admin",        // reserved — generator drops it
+		"resource_uid":         "bad-uid",      // reserved — generator drops it
+	}
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	record := store.CreateCalls[0]
+	if record.CustomClaims == nil {
+		t.Fatal("CustomClaims in stored record is nil, want non-nil map with allowed keys")
+	}
+	if got := record.CustomClaims["formation_invite_uid"]; got != "form-inv-xyz" {
+		t.Errorf("CustomClaims[formation_invite_uid] = %q, want %q", got, "form-inv-xyz")
+	}
+	for _, reservedKey := range []string{"email", "role", "resource_uid"} {
+		if _, ok := record.CustomClaims[reservedKey]; ok {
+			t.Errorf("reserved key %q must not be stored in CustomClaims", reservedKey)
+		}
 	}
 }
 
