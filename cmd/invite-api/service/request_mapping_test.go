@@ -32,9 +32,10 @@ func TestAPIToModelRequest_MapsAllFields(t *testing.T) {
 			Avatar:   "https://avatar.example.com/bob",
 		},
 		Resource: &api.Resource{
-			UID:  "res-1",
-			Name: "My Project",
-			Type: "project",
+			UID:        "res-1",
+			Name:       "My Project",
+			Type:       "project",
+			ParentName: "Parent Org",
 		},
 		RecipientEmail:      "scalar@example.com", //nolint:staticcheck
 		RecipientName:       "Scalar Alice",       //nolint:staticcheck
@@ -98,6 +99,9 @@ func TestAPIToModelRequest_MapsAllFields(t *testing.T) {
 	}
 	if got.Resource.Type != "project" {
 		t.Errorf("Resource.Type: got %q, want %q", got.Resource.Type, "project")
+	}
+	if got.Resource.ParentName != "Parent Org" {
+		t.Errorf("Resource.ParentName: got %q, want %q", got.Resource.ParentName, "Parent Org")
 	}
 
 	// Deprecated scalars

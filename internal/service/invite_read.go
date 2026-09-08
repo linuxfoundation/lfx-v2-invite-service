@@ -85,9 +85,10 @@ func domainToAPIInvite(r *model.InviteRecord) api.Invite {
 			Avatar:   r.Inviter.Avatar,
 		},
 		Resource: api.Resource{
-			UID:  r.Resource.UID,
-			Name: r.Resource.Name,
-			Type: r.Resource.Type,
+			UID:        r.Resource.UID,
+			Name:       r.Resource.Name,
+			Type:       r.Resource.Type,
+			ParentName: r.Resource.ParentName,
 		},
 		Role:           r.Role,
 		OrgName:        r.OrgName,

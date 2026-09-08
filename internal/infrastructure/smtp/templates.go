@@ -32,15 +32,22 @@ var (
 
 // inviteEmailData is the template execution context.
 type inviteEmailData struct {
-	RecipientFirstName  string
-	InviterFirstName    string
-	InviterFullName     string
-	ResourceName        string
-	ResourceType        string
-	Role                string
-	ReturnURL           string
-	OrgName             string
-	HasInviter          bool
+	RecipientFirstName string
+	InviterFirstName   string
+	InviterFullName    string
+	ResourceName       string
+	ResourceType       string
+	// ParentResourceName is the display name of the parent resource (e.g. the
+	// project that owns a formation). Empty for top-level resources. When set,
+	// templates render "ResourceName ResourceType (part of ParentResourceName)".
+	ParentResourceName string
+	Role               string
+	ReturnURL          string
+	OrgName            string
+	HasInviter         bool
+	// HasParentResource is true when ParentResourceName is non-empty, allowing
+	// templates to conditionally render the parent context clause.
+	HasParentResource   bool
 	RecipientHasAccount bool
 }
 
@@ -55,10 +62,12 @@ func buildTemplateData(payload model.InviteEmailPayload) inviteEmailData {
 		InviterFullName:     payload.InviterName,
 		ResourceName:        payload.ResourceName,
 		ResourceType:        payload.ResourceType,
+		ParentResourceName:  payload.ParentResourceName,
 		Role:                payload.Role,
 		ReturnURL:           payload.InviteLink,
 		OrgName:             orgName,
 		HasInviter:          payload.InviterName != "",
+		HasParentResource:   payload.ParentResourceName != "",
 		RecipientHasAccount: payload.RecipientHasAccount,
 	}
 }

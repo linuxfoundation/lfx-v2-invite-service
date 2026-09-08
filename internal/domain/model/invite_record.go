@@ -37,6 +37,10 @@ type InviteResource struct {
 	UID  string `json:"uid,omitempty"`
 	Name string `json:"name,omitempty"`
 	Type string `json:"type,omitempty"`
+	// ParentName is the display name of the parent resource (e.g. the formation that
+	// owns a committee). When set, the invite email renders both names:
+	// "Committee Name committee (part of Formation Name)". Empty for top-level resources.
+	ParentName string `json:"parent_name,omitempty"`
 }
 
 // InviteRecord is the invite service's persisted record of an invite, stored in
@@ -60,6 +64,11 @@ type InviteRecord struct {
 	// CustomClaims are the resource-specific string claims that were embedded in the
 	// signed JWT invite token. They are persisted here so that downstream consumers of
 	// InviteServiceAcceptedEvent receive them without performing a separate lookup.
+	//
+	// Values MUST be opaque identifiers (UUIDs, slugs) — never free-text or PII.
+	// InviteRecord is stored in the KV bucket with no TTL (permanent audit trail).
+	// Callers that store PII values accept responsibility for GDPR/deletion compliance.
+	//
 	// Example keys used by formation-service: "formation_invite_uid", "item_uids".
 	CustomClaims map[string]string `json:"custom_claims,omitempty"`
 

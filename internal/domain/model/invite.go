@@ -102,3 +102,13 @@ func (r *SendInviteRequest) ResolvedInviterName() string {
 	}
 	return r.InviterName
 }
+
+// ResolvedParentResourceName returns the parent resource display name from the
+// structured Resource object. There is no deprecated scalar equivalent — callers
+// that need to show a parent entity must use the structured Resource field.
+func (r *SendInviteRequest) ResolvedParentResourceName() string {
+	if r.Resource != nil {
+		return r.Resource.ParentName
+	}
+	return ""
+}

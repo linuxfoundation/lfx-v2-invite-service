@@ -47,9 +47,10 @@ func apiToModelRequest(r api.SendInviteRequest) model.SendInviteRequest {
 	}
 	if r.Resource != nil {
 		m.Resource = &model.InviteResource{
-			UID:  r.Resource.UID,
-			Name: r.Resource.Name,
-			Type: r.Resource.Type,
+			UID:        r.Resource.UID,
+			Name:       r.Resource.Name,
+			Type:       r.Resource.Type,
+			ParentName: r.Resource.ParentName,
 		}
 	}
 	return m

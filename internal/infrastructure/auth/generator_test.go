@@ -423,3 +423,32 @@ func TestLinkGenerator_Generate_CustomClaims_ValueTooLong(t *testing.T) {
 		t.Errorf("expected ErrInvalidCustomClaims, got %v", err)
 	}
 }
+
+// TestLinkGenerator_Generate_CustomClaims_AllReserved verifies that when every
+// supplied custom claim key is reserved, acceptedClaims is nil (not an empty
+// non-nil map). This ensures the custom_claims,omitempty tag on InviteRecord
+// and api.Invite correctly omits the field from serialized JSON.
+func TestLinkGenerator_Generate_CustomClaims_AllReserved(t *testing.T) {
+	secret := []byte("test-secret-must-be-at-least-32bytes!")
+	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
+
+	_, _, _, acceptedClaims, err := gen.Generate(context.Background(), port.LinkPayload{
+		RecipientEmail: "user@example.com",
+		DestinationURL: "https://example.com",
+		ResourceUID:    "res-123",
+		ResourceType:   "group",
+		Role:           "Member",
+		// All keys are reserved — none should survive into acceptedClaims.
+		CustomClaims: map[string]string{
+			"email":        "attacker@evil.com",
+			"role":         "Admin",
+			"resource_uid": "injected",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Generate() unexpected error = %v", err)
+	}
+	if acceptedClaims != nil {
+		t.Errorf("acceptedClaims = %v, want nil when all supplied keys are reserved", acceptedClaims)
+	}
+}

@@ -13,7 +13,9 @@ DISABLE_ERRORS_LINTERS:
   - REPOSITORY_TRIVY
   - REPOSITORY_CHECKOV
   - REPOSITORY_DEVSKIM
-  - REPOSITORY_GRYPE
+  # REPOSITORY_GRYPE is intentionally NOT listed here — Grype runs as a
+  # blocking check. Accepted CVEs are scoped by ID in .grype.yaml instead
+  # of suppressing the entire scanner.
 YAML_YAMLLINT_CONFIG_FILE: .yamllint
 REPOSITORY_KICS_ARGUMENTS: scan --no-progress --exclude-severities="medium,low,info,trace"
 SPELL_CSPELL_ANALYZE_FILE_NAMES: false

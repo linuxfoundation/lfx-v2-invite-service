@@ -1,0 +1,14 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+#
+# Grype ignore rules — scoped allowlist of accepted vulnerabilities.
+# Only enumerate CVEs that are consciously accepted; do NOT add blanket
+# suppressions here. Re-evaluate each entry when the toolchain is upgraded.
+
+ignore:
+  # golang.org/x/crypto v0.55.0 — two related CVEs fixable only by upgrading
+  # to v0.56.0+, which requires Go 1.26. The repo targets Go 1.25 until the
+  # MegaLinter golangci-lint image ships a Go 1.26 build.
+  # Track removal with: upgrade to Go 1.26 + x/crypto v0.56.0+.
+  - vulnerability: GO-2026-6355
+  - vulnerability: GO-2026-6354

@@ -38,9 +38,9 @@
     <p class="greeting">Hi{{if .RecipientFirstName}} {{.RecipientFirstName}}{{end}},</p>
 
     {{if .HasInviter}}
-    <p><strong>{{.InviterFullName}}</strong> has invited you to join the <strong>{{.ResourceName}}</strong>{{if .ResourceType}} {{.ResourceType}}{{end}} on LFX with the <strong>{{.Role}}</strong> role.</p>
+    <p><strong>{{.InviterFullName}}</strong> has invited you to join the <strong>{{.ResourceName}}</strong>{{if .ResourceType}} {{.ResourceType}}{{end}}{{if .HasParentResource}} (part of <strong>{{.ParentResourceName}}</strong>){{end}} on LFX with the <strong>{{.Role}}</strong> role.</p>
     {{else}}
-    <p>You have been invited to join the <strong>{{.ResourceName}}</strong>{{if .ResourceType}} {{.ResourceType}}{{end}} on LFX with the <strong>{{.Role}}</strong> role.</p>
+    <p>You have been invited to join the <strong>{{.ResourceName}}</strong>{{if .ResourceType}} {{.ResourceType}}{{end}}{{if .HasParentResource}} (part of <strong>{{.ParentResourceName}}</strong>){{end}} on LFX with the <strong>{{.Role}}</strong> role.</p>
     {{end}}
     {{if not .RecipientHasAccount}}
     <p>You&#39;ll need an LFX account to get started.</p>
@@ -48,7 +48,7 @@
     <ol>
         <li>Click the button below to accept the invitation</li>
         <li>Create your LFX account (or sign in if you have a Linux Foundation ID)</li>
-        <li>You&#39;ll be taken straight to the <strong>{{.ResourceName}}</strong>{{if .ResourceType}} {{.ResourceType}}{{end}} dashboard</li>
+        <li>You&#39;ll be taken straight to the <strong>{{.ResourceName}}</strong>{{if .ResourceType}} {{.ResourceType}}{{end}}{{if .HasParentResource}} (part of <strong>{{.ParentResourceName}}</strong>){{end}} dashboard</li>
     </ol>
     {{end}}
 

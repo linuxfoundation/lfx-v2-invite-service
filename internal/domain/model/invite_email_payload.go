@@ -22,6 +22,11 @@ type InviteEmailPayload struct {
 	ResourceName string
 	// ResourceType is the resolved resource type (e.g. "project", "committee").
 	ResourceType string
+	// ParentResourceName is the display name of the parent resource, used when the
+	// resource is a child of another (e.g. a committee within a formation). Empty for
+	// top-level resources. When non-empty, the email renders:
+	// "ResourceName ResourceType (part of ParentResourceName)".
+	ParentResourceName string
 	// ResourceUID is the resolved resource UID, used for logging inside the adapter.
 	ResourceUID string
 	// Role is the trimmed, non-empty role string.

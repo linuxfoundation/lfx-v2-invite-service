@@ -99,6 +99,12 @@ type Resource struct {
 	UID  string `json:"uid,omitempty"`
 	Name string `json:"name,omitempty"`
 	Type string `json:"type,omitempty"`
+	// ParentName is the display name of the parent resource, used when the resource
+	// is a child of another (e.g. a committee within a formation). When set, the invite
+	// email names both entities: "Committee Name committee (part of Formation Name)".
+	// The invite service renders whatever string is given here — it does not interpret
+	// or validate the parent relationship.
+	ParentName string `json:"parent_name,omitempty"`
 }
 
 // InviteData holds the invite metadata returned on a successful send_invite reply.
@@ -123,6 +129,12 @@ type Invite struct {
 	// CustomClaims are the resource-specific string claims that were embedded in the
 	// signed JWT invite token. Downstream consumers of InviteServiceAcceptedEvent
 	// receive them here without needing a separate invite lookup.
+	//
+	// Values MUST be opaque identifiers (UUIDs, slugs) — never free-text or PII.
+	// Invite records are retained permanently (no TTL) per the KV bucket policy, and
+	// CustomClaims are stored verbatim in that record and exposed through read APIs.
+	// Callers that store PII values accept responsibility for GDPR/deletion compliance.
+	//
 	// Example keys used by formation-service: "formation_invite_uid", "item_uids".
 	CustomClaims map[string]string `json:"custom_claims,omitempty"`
 	CreatedAt    time.Time         `json:"created_at"`
@@ -184,6 +196,11 @@ type SendInviteRequest struct {
 	// resource_type, role) are ignored (with a warning log) to prevent claim hijacking.
 	// Maps with more than 16 entries or entries whose key exceeds 64 bytes or value
 	// exceeds 1024 bytes are rejected with an error.
+	//
+	// Values MUST be opaque identifiers (UUIDs, slugs) — never free-text or PII.
+	// Persisted claims inherit the KV bucket's permanent-audit-trail retention policy
+	// and are returned verbatim by read APIs. Callers that store PII values accept
+	// responsibility for GDPR/deletion compliance.
 	CustomClaims map[string]string `json:"custom_claims,omitempty"`
 	// RecipientHasAccount indicates whether the recipient already has an LFX account.
 	// When true the invite service renders the existing-user email template (no

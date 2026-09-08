@@ -713,3 +713,85 @@ func TestHandleSendInvite_EmailSendError_AuditsFailed(t *testing.T) {
 		t.Errorf("expected delivery_state %q in audit log, got:\n%s", model.DeliveryStateFailed, logs)
 	}
 }
+
+// --- ParentName propagation ---
+
+// TestHandleSendInvite_ParentNamePropagatedToEmailPayload verifies that
+// Resource.ParentName is forwarded to InviteEmailPayload.ParentResourceName
+// so the email template can render the parent context clause.
+func TestHandleSendInvite_ParentNamePropagatedToEmailPayload(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.Resource = &model.InviteResource{
+		UID:        testResourceUID,
+		Name:       "My Formation",
+		Type:       "formation",
+		ParentName: "Parent Project",
+	}
+
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email send call, got %d", len(email.Calls))
+	}
+	got := email.Calls[0].ParentResourceName
+	if got != "Parent Project" {
+		t.Errorf("InviteEmailPayload.ParentResourceName = %q, want %q", got, "Parent Project")
+	}
+}
+
+// TestHandleSendInvite_ParentNameEmptyWhenNotSet verifies that
+// InviteEmailPayload.ParentResourceName is empty when the caller does not
+// supply Resource.ParentName — i.e. top-level resources are unaffected.
+func TestHandleSendInvite_ParentNameEmptyWhenNotSet(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.Resource = &model.InviteResource{
+		UID:  testResourceUID,
+		Name: "My Project",
+		Type: "project",
+		// ParentName intentionally omitted
+	}
+
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email send call, got %d", len(email.Calls))
+	}
+	if got := email.Calls[0].ParentResourceName; got != "" {
+		t.Errorf("InviteEmailPayload.ParentResourceName = %q, want empty", got)
+	}
+}
+
+// TestHandleSendInvite_ParentNamePersistedInRecord verifies that
+// Resource.ParentName is persisted in the InviteRecord stored in the KV bucket.
+func TestHandleSendInvite_ParentNamePersistedInRecord(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	req.Resource = &model.InviteResource{
+		UID:        testResourceUID,
+		Name:       "My Formation",
+		Type:       "formation",
+		ParentName: "Parent Project",
+	}
+
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store create call, got %d", len(store.CreateCalls))
+	}
+	record := store.CreateCalls[0]
+	if record.Resource.ParentName != "Parent Project" {
+		t.Errorf("InviteRecord.Resource.ParentName = %q, want %q", record.Resource.ParentName, "Parent Project")
+	}
+}

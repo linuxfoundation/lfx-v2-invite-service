@@ -323,6 +323,69 @@ func TestRenderInviteEmail_Plain_RecipientHasAccount(t *testing.T) {
 	}
 }
 
+// --- ParentResourceName / HasParentResource ---
+
+func TestRenderInviteEmail_HTML_ParentResourceName_Rendered(t *testing.T) {
+	p := basePayload()
+	p.ResourceType = "formation"
+	// Use a value distinct from ResourceName ("My Project") so an assertion on
+	// "Parent Org" cannot pass accidentally due to the ResourceName value.
+	p.ParentResourceName = "Parent Org"
+	out := RenderInviteEmail(p).HTML
+	// "part of Parent Org" must appear at least twice: once in the invite
+	// paragraph and once in the step-3 list item.
+	if n := strings.Count(out, "Parent Org"); n < 2 {
+		t.Errorf("HTML: expected 'Parent Org' at least 2 times (paragraph + step-3), got %d", n)
+	}
+	if !strings.Contains(out, "part of") {
+		t.Errorf("HTML missing 'part of' parent clause")
+	}
+}
+
+func TestRenderInviteEmail_HTML_ParentResourceName_AbsentWhenEmpty(t *testing.T) {
+	p := basePayload()
+	p.ParentResourceName = ""
+	out := RenderInviteEmail(p).HTML
+	if strings.Contains(out, "part of") {
+		t.Errorf("HTML must not render parent clause when ParentResourceName is empty, got:\n%s", out)
+	}
+}
+
+func TestRenderInviteEmail_Plain_ParentResourceName_Rendered(t *testing.T) {
+	p := basePayload()
+	p.ResourceType = "formation"
+	// Use a value distinct from ResourceName ("My Project") so an assertion on
+	// "Parent Org" cannot pass accidentally due to the ResourceName value.
+	p.ParentResourceName = "Parent Org"
+	out := RenderInviteEmail(p).Plain
+	// "part of Parent Org" must appear at least twice: once in the invite
+	// paragraph and once in the step-3 list item.
+	if n := strings.Count(out, "Parent Org"); n < 2 {
+		t.Errorf("plain text: expected 'Parent Org' at least 2 times (paragraph + step-3), got %d", n)
+	}
+	if !strings.Contains(out, "part of") {
+		t.Errorf("plain text missing 'part of' parent clause")
+	}
+}
+
+func TestRenderInviteEmail_Plain_ParentResourceName_AbsentWhenEmpty(t *testing.T) {
+	p := basePayload()
+	p.ParentResourceName = ""
+	out := RenderInviteEmail(p).Plain
+	if strings.Contains(out, "part of") {
+		t.Errorf("plain text must not render parent clause when ParentResourceName is empty, got:\n%s", out)
+	}
+}
+
+func TestRenderInviteEmail_HTML_ParentResourceName_EscapedInHTML(t *testing.T) {
+	p := basePayload()
+	p.ParentResourceName = "<script>owned</script>"
+	out := RenderInviteEmail(p).HTML
+	if strings.Contains(out, "<script>") {
+		t.Error("HTML must escape ParentResourceName containing script tags")
+	}
+}
+
 // --- Fallback internals (white-box, same package) ---
 
 func TestFallbackInviteSubject_WithInviter(t *testing.T) {

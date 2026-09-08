@@ -224,9 +224,10 @@ func TestInviteReadService_GetInvite_ConvertsAllFields(t *testing.T) {
 			Avatar:   "https://avatar.example.com/bob",
 		},
 		Resource: model.InviteResource{
-			UID:  "res-1",
-			Name: "My Project",
-			Type: "project",
+			UID:        "res-1",
+			Name:       "My Project",
+			Type:       "project",
+			ParentName: "Parent Org",
 		},
 		Role:           "Manage",
 		OrgName:        "The Linux Foundation",
@@ -264,6 +265,9 @@ func TestInviteReadService_GetInvite_ConvertsAllFields(t *testing.T) {
 	}
 	if inv.Resource.Type != "project" {
 		t.Errorf("Resource.Type: got %q, want %q", inv.Resource.Type, "project")
+	}
+	if inv.Resource.ParentName != "Parent Org" {
+		t.Errorf("Resource.ParentName: got %q, want %q", inv.Resource.ParentName, "Parent Org")
 	}
 	if inv.AcceptedBy != "alice-lfid" {
 		t.Errorf("AcceptedBy: got %q, want %q", inv.AcceptedBy, "alice-lfid")
