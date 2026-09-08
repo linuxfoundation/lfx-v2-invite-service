@@ -328,13 +328,17 @@ func TestRenderInviteEmail_Plain_RecipientHasAccount(t *testing.T) {
 func TestRenderInviteEmail_HTML_ParentResourceName_Rendered(t *testing.T) {
 	p := basePayload()
 	p.ResourceType = "formation"
-	p.ParentResourceName = "My Project"
+	// Use a value distinct from ResourceName ("My Project") so an assertion on
+	// "Parent Org" cannot pass accidentally due to the ResourceName value.
+	p.ParentResourceName = "Parent Org"
 	out := RenderInviteEmail(p).HTML
-	if !strings.Contains(out, "part of") {
-		t.Errorf("HTML missing 'part of' parent clause, got:\n%s", out)
+	// "part of Parent Org" must appear at least twice: once in the invite
+	// paragraph and once in the step-3 list item.
+	if n := strings.Count(out, "Parent Org"); n < 2 {
+		t.Errorf("HTML: expected 'Parent Org' at least 2 times (paragraph + step-3), got %d", n)
 	}
-	if !strings.Contains(out, "My Project") {
-		t.Errorf("HTML missing parent resource name, got output length %d", len(out))
+	if !strings.Contains(out, "part of") {
+		t.Errorf("HTML missing 'part of' parent clause")
 	}
 }
 
@@ -350,13 +354,17 @@ func TestRenderInviteEmail_HTML_ParentResourceName_AbsentWhenEmpty(t *testing.T)
 func TestRenderInviteEmail_Plain_ParentResourceName_Rendered(t *testing.T) {
 	p := basePayload()
 	p.ResourceType = "formation"
-	p.ParentResourceName = "My Project"
+	// Use a value distinct from ResourceName ("My Project") so an assertion on
+	// "Parent Org" cannot pass accidentally due to the ResourceName value.
+	p.ParentResourceName = "Parent Org"
 	out := RenderInviteEmail(p).Plain
+	// "part of Parent Org" must appear at least twice: once in the invite
+	// paragraph and once in the step-3 list item.
+	if n := strings.Count(out, "Parent Org"); n < 2 {
+		t.Errorf("plain text: expected 'Parent Org' at least 2 times (paragraph + step-3), got %d", n)
+	}
 	if !strings.Contains(out, "part of") {
 		t.Errorf("plain text missing 'part of' parent clause")
-	}
-	if !strings.Contains(out, "My Project") {
-		t.Errorf("plain text missing parent resource name")
 	}
 }
 
