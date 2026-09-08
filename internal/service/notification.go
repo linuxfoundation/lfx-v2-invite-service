@@ -108,7 +108,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	// Generate a signed JWT invite link wrapping the destination URL.
 	// Fail closed: JWT signing failure is a hard error — silently falling back to a
 	// plain URL would deliver an LFX-branded email pointing to an unsigned, unrevokable link.
-	inviteLink, inviteUID, expiresAt, linkErr := s.linkGenerator.Generate(ctx, port.LinkPayload{
+	inviteLink, inviteUID, expiresAt, acceptedClaims, linkErr := s.linkGenerator.Generate(ctx, port.LinkPayload{
 		RecipientEmail: canonicalEmail,
 		DestinationURL: destURL,
 		ResourceUID:    resourceUID,
@@ -147,7 +147,7 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 	// Persist the invite record before sending the email. If the store write fails
 	// we return an error immediately — we never send an invite we cannot track.
 	if s.inviteStore != nil {
-		record := buildInviteRecord(inviteUID, req, canonicalEmail, destURL, roleStr, expiresAt)
+		record := buildInviteRecord(inviteUID, req, canonicalEmail, destURL, roleStr, expiresAt, acceptedClaims)
 		if storeErr := s.inviteStore.Create(ctx, record); storeErr != nil {
 			slog.ErrorContext(ctx, "invite_store: failed to fully persist invite record (primary may be written, index inconsistent) — aborting send",
 				"invite_uid", inviteUID,
@@ -211,8 +211,10 @@ func (s *NotificationService) HandleSendInvite(ctx context.Context, req *model.S
 // buildInviteRecord constructs the InviteRecord to persist from the original request
 // plus pre-computed values. canonicalEmail is the output of mail.ParseAddress and is
 // always used for Recipient.Email. destURL is the raw destination URL — never the
-// signed JWT link. role is the normalized (trimmed) role string.
-func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, canonicalEmail, destURL, role string, expiresAt time.Time) *model.InviteRecord {
+// signed JWT link. role is the normalized (trimmed) role string. acceptedClaims is
+// the map returned by LinkGenerator.Generate — it contains exactly the custom claims
+// that were embedded in the JWT (reserved keys already stripped by the generator).
+func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, canonicalEmail, destURL, role string, expiresAt time.Time, acceptedClaims map[string]string) *model.InviteRecord {
 	// Build inviter — prefer the structured object, fall back to the resolved scalar.
 	inviterName := req.ResolvedInviterName()
 	var inviter model.Inviter
@@ -261,7 +263,7 @@ func buildInviteRecord(inviteUID string, req *model.SendInviteRequest, canonical
 		OrgName:        req.OrgName,
 		ReturnURL:      destURL,
 		ExpirationDays: req.ExpirationDays,
-		CustomClaims:   req.CustomClaims,
+		CustomClaims:   acceptedClaims,
 		CreatedAt:      time.Now(),
 		ExpiresAt:      expiresAt,
 	}

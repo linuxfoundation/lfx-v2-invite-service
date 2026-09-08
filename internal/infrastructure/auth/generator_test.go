@@ -29,7 +29,7 @@ func TestLinkGenerator_Generate(t *testing.T) {
 	}
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, inviteUID, expiresAt, err := gen.Generate(context.Background(), p)
+	link, inviteUID, expiresAt, _, err := gen.Generate(context.Background(), p)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -113,7 +113,7 @@ func TestLinkGenerator_Generate_Custom_ExpirationDays(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, _, expiresAt, err := gen.Generate(context.Background(), port.LinkPayload{
+	link, _, expiresAt, _, err := gen.Generate(context.Background(), port.LinkPayload{
 		RecipientEmail: "user@example.com",
 		DestinationURL: "https://example.com",
 		ResourceUID:    "res-123",
@@ -158,7 +158,7 @@ func TestLinkGenerator_Generate_WrongSecret(t *testing.T) {
 	baseURL := "https://lfx.example.com"
 
 	gen := auth.NewLinkGenerator(secret, baseURL)
-	link, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+	link, _, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
 		RecipientEmail: "user@example.com",
 		DestinationURL: "https://example.com/dest",
 		ResourceUID:    "res-123",
@@ -183,8 +183,8 @@ func TestLinkGenerator_Generate_UniqueJTI(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 	p := port.LinkPayload{RecipientEmail: "user@example.com", DestinationURL: "https://example.com", ResourceUID: "res-123", Role: "Manage"}
 
-	link1, _, _, _ := gen.Generate(context.Background(), p)
-	link2, _, _, _ := gen.Generate(context.Background(), p)
+	link1, _, _, _, _ := gen.Generate(context.Background(), p)
+	link2, _, _, _, _ := gen.Generate(context.Background(), p)
 
 	if link1 == link2 {
 		t.Error("two Generate() calls for the same input produced identical links (jti must be unique)")
@@ -195,7 +195,7 @@ func TestLinkGenerator_Generate_EmptyResourceType_ClaimOmitted(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	link, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+	link, _, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
 		RecipientEmail: "user@example.com",
 		DestinationURL: "https://example.com",
 		ResourceUID:    "res-123",
@@ -227,7 +227,7 @@ func TestLinkGenerator_Generate_CustomClaims_Embedded(t *testing.T) {
 	secret := []byte("test-secret-must-be-at-least-32bytes!")
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
-	link, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+	link, _, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
 		RecipientEmail: "user@example.com",
 		DestinationURL: "https://example.com",
 		ResourceUID:    "res-123",
@@ -267,7 +267,7 @@ func TestLinkGenerator_Generate_CustomClaims_ReservedKeysIgnored(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	// Attempt to override a reserved claim via CustomClaims — must be ignored (with a warning log).
-	link, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+	link, _, _, acceptedClaims, err := gen.Generate(context.Background(), port.LinkPayload{
 		RecipientEmail: "user@example.com",
 		DestinationURL: "https://example.com",
 		ResourceUID:    "res-123",
@@ -282,6 +282,7 @@ func TestLinkGenerator_Generate_CustomClaims_ReservedKeysIgnored(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
+	// Verify the JWT itself: reserved key must not be overridable.
 	tokenStr := strings.TrimPrefix(link, "https://lfx.example.com/invite?token=")
 	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -298,9 +299,21 @@ func TestLinkGenerator_Generate_CustomClaims_ReservedKeysIgnored(t *testing.T) {
 	if got := claims["email"]; got != "user@example.com" {
 		t.Errorf("email claim = %v, want original %v (reserved key must not be overridable)", got, "user@example.com")
 	}
-	// Non-reserved custom claim must still be present.
+	// Non-reserved custom claim must still be present in the JWT.
 	if got := claims["committee_invite_uid"]; got != "inv-safe" {
 		t.Errorf("committee_invite_uid claim = %v, want %v", got, "inv-safe")
+	}
+
+	// Verify acceptedClaims: the generator must return only the non-reserved keys so
+	// callers can persist exactly what landed in the JWT.
+	if acceptedClaims == nil {
+		t.Fatal("acceptedClaims is nil, want non-nil map with allowed keys")
+	}
+	if got, ok := acceptedClaims["committee_invite_uid"]; !ok || got != "inv-safe" {
+		t.Errorf("acceptedClaims[committee_invite_uid] = %q, want %q", got, "inv-safe")
+	}
+	if _, ok := acceptedClaims["email"]; ok {
+		t.Error("acceptedClaims must not contain reserved key \"email\"")
 	}
 }
 
@@ -309,7 +322,7 @@ func TestLinkGenerator_Generate_CustomClaims_SubReserved(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	// sub is an RFC 7519 registered claim and must be reserved.
-	link, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+	link, _, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
 		RecipientEmail: "user@example.com",
 		DestinationURL: "https://example.com",
 		ResourceUID:    "res-123",
@@ -353,7 +366,7 @@ func TestLinkGenerator_Generate_CustomClaims_TooMany(t *testing.T) {
 	for i := 0; i < 17; i++ {
 		tooMany[fmt.Sprintf("key%d", i)] = "value"
 	}
-	_, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+	_, _, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
 		RecipientEmail: "user@example.com",
 		DestinationURL: "https://example.com",
 		ResourceUID:    "res-123",
@@ -374,7 +387,7 @@ func TestLinkGenerator_Generate_CustomClaims_KeyTooLong(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	longKey := strings.Repeat("k", 65)
-	_, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+	_, _, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
 		RecipientEmail: "user@example.com",
 		DestinationURL: "https://example.com",
 		ResourceUID:    "res-123",
@@ -395,7 +408,7 @@ func TestLinkGenerator_Generate_CustomClaims_ValueTooLong(t *testing.T) {
 	gen := auth.NewLinkGenerator(secret, "https://lfx.example.com")
 
 	longValue := strings.Repeat("v", 1025)
-	_, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
+	_, _, _, _, err := gen.Generate(context.Background(), port.LinkPayload{
 		RecipientEmail: "user@example.com",
 		DestinationURL: "https://example.com",
 		ResourceUID:    "res-123",
