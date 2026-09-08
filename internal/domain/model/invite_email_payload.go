@@ -23,7 +23,7 @@ type InviteEmailPayload struct {
 	// ResourceType is the resolved resource type (e.g. "project", "committee").
 	ResourceType string
 	// ParentResourceName is the display name of the parent resource, used when the
-	// resource is a child of another (e.g. a formation within a project). Empty for
+	// resource is a child of another (e.g. a committee within a formation). Empty for
 	// top-level resources. When non-empty, the email renders:
 	// "ResourceName ResourceType (part of ParentResourceName)".
 	ParentResourceName string

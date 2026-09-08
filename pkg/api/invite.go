@@ -100,8 +100,8 @@ type Resource struct {
 	Name string `json:"name,omitempty"`
 	Type string `json:"type,omitempty"`
 	// ParentName is the display name of the parent resource, used when the resource
-	// is a child of another (e.g. a formation within a project). When set, the invite
-	// email names both entities: "Formation Name formation (part of Parent Name)".
+	// is a child of another (e.g. a committee within a formation). When set, the invite
+	// email names both entities: "Committee Name committee (part of Formation Name)".
 	// The invite service renders whatever string is given here — it does not interpret
 	// or validate the parent relationship.
 	ParentName string `json:"parent_name,omitempty"`
