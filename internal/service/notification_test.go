@@ -1,0 +1,797 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package service
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"log/slog"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-invite-service/internal/domain/port/mocks"
+)
+
+const (
+	testBaseURL      = "https://lfx.example.com"
+	testResourceUID  = "res-abc123"
+	testResourceName = "Test Project"
+)
+
+// noopLinkGenerator returns a fixed invite link without signing, for use in tests.
+type noopLinkGenerator struct{}
+
+// errorLinkGenerator always returns an error from Generate.
+type errorLinkGenerator struct{ err error }
+
+func (e *errorLinkGenerator) Generate(_ context.Context, _ port.LinkPayload) (string, string, time.Time, map[string]string, error) {
+	return "", "", time.Time{}, nil, e.err
+}
+
+// captureLogs redirects the slog default logger to a buffer for the duration of the test
+// and restores it on cleanup. Returns a pointer to the buffer so callers can inspect output.
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	orig := slog.Default()
+	buf := &bytes.Buffer{}
+	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(orig) })
+	return buf
+}
+
+func (n *noopLinkGenerator) Generate(_ context.Context, p port.LinkPayload) (string, string, time.Time, map[string]string, error) {
+	var accepted map[string]string
+	if len(p.CustomClaims) > 0 {
+		accepted = p.CustomClaims
+	}
+	return testBaseURL + "/invite?token=test-token-for-" + p.RecipientEmail, "test-invite-uid", time.Now().Add(7 * 24 * time.Hour), accepted, nil
+}
+
+func newService(email *mocks.EmailSender) *NotificationService {
+	return NewNotificationService(email, &noopLinkGenerator{}, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
+}
+
+func newServiceWithStore(email *mocks.EmailSender, store *mocks.InviteStore) *NotificationService {
+	return NewNotificationService(email, &noopLinkGenerator{}, store, NotificationConfig{DefaultReturnURL: testBaseURL})
+}
+
+func baseInviteRequest() *model.SendInviteRequest {
+	return &model.SendInviteRequest{
+		RecipientEmail: "alice@example.com",
+		RecipientName:  "Alice",
+		InviterName:    "Bob",
+		ResourceUID:    testResourceUID,
+		ResourceName:   testResourceName,
+		Role:           string(model.RoleManage),
+		ReturnURL:      testBaseURL + "/resources/" + testResourceUID,
+	}
+}
+
+func TestHandleSendInvite_HappyPath(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	result, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result.InviteUID != "test-invite-uid" {
+		t.Errorf("invite_uid: got %q, want %q", result.InviteUID, "test-invite-uid")
+	}
+	if result.RecipientEmail != req.ResolvedRecipientEmail() {
+		t.Errorf("recipient_email: got %q, want %q", result.RecipientEmail, req.ResolvedRecipientEmail())
+	}
+	if result.ExpiresAt.IsZero() {
+		t.Error("expires_at should not be zero")
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email, got %d", len(email.Calls))
+	}
+	n := email.Calls[0]
+	if n.RecipientEmail != req.ResolvedRecipientEmail() {
+		t.Errorf("recipient email: got %q, want %q", n.RecipientEmail, req.ResolvedRecipientEmail())
+	}
+	if n.InviterName != req.ResolvedInviterName() {
+		t.Errorf("inviter name: got %q, want %q", n.InviterName, req.ResolvedInviterName())
+	}
+	if n.ResourceName != req.ResolvedResourceName() {
+		t.Errorf("resource name: got %q, want %q", n.ResourceName, req.ResolvedResourceName())
+	}
+	if n.Role != req.Role {
+		t.Errorf("role: got %q, want %q", n.Role, req.Role)
+	}
+}
+
+func TestHandleSendInvite_MissingRecipientEmail_ReturnsError(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.RecipientEmail = "" //nolint:staticcheck // testing deprecated scalar fallback: no Recipient object, empty scalar → error
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for missing recipient email, got nil")
+	}
+	if len(email.Calls) != 0 {
+		t.Error("expected no email sent when recipient email is empty")
+	}
+}
+
+func TestHandleSendInvite_EmailSendError_Propagates(t *testing.T) {
+	sendErr := errors.New("email service unavailable")
+	email := &mocks.EmailSender{
+		SendFunc: func(_ context.Context, _ model.InviteEmailPayload) error {
+			return sendErr
+		},
+	}
+	svc := newService(email)
+
+	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, sendErr) {
+		t.Errorf("expected wrapped sendErr, got %v", err)
+	}
+}
+
+func TestHandleSendInvite_NoInviter(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.InviterName = "" //nolint:staticcheck // testing deprecated scalar fallback: no Inviter object, empty scalar → no inviter in email
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email, got %d", len(email.Calls))
+	}
+	if email.Calls[0].InviterName != "" {
+		t.Errorf("expected empty inviter name, got %q", email.Calls[0].InviterName)
+	}
+}
+
+func TestHandleSendInvite_EmptyRole_ReturnsError(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		role string
+	}{
+		{"empty string", ""},
+		{"whitespace only", "   "},
+		{"tabs and newlines", "\t\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			email := &mocks.EmailSender{}
+			svc := newService(email)
+
+			req := baseInviteRequest()
+			req.Role = tc.role
+			_, err := svc.HandleSendInvite(context.Background(), req)
+			if err == nil {
+				t.Fatal("expected error for empty/whitespace role, got nil")
+			}
+			if !errors.Is(err, ErrInvalidRequest) {
+				t.Errorf("expected ErrInvalidRequest, got %v", err)
+			}
+			if len(email.Calls) != 0 {
+				t.Error("expected no email sent when role is empty or whitespace-only")
+			}
+		})
+	}
+}
+
+func TestHandleSendInvite_TrimmedRole_Normalized(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.Role = "Manage "
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("expected nil error for role with trailing whitespace, got %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email, got %d", len(email.Calls))
+	}
+	if email.Calls[0].Role != "Manage" {
+		t.Errorf("role: got %q, want trimmed %q", email.Calls[0].Role, "Manage")
+	}
+
+}
+
+func TestHandleSendInvite_CustomRole_Accepted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.Role = "Registrant"
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("expected nil error for custom role, got %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email for custom role, got %d", len(email.Calls))
+	}
+	if email.Calls[0].Role != "Registrant" {
+		t.Errorf("role: got %q, want %q", email.Calls[0].Role, "Registrant")
+	}
+
+}
+
+func TestHandleSendInvite_ViewRole_Accepted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.Role = string(model.RoleView)
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("expected nil error for View role, got %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email for View role, got %d", len(email.Calls))
+	}
+	if email.Calls[0].Role != string(model.RoleView) {
+		t.Errorf("role: got %q, want %q", email.Calls[0].Role, model.RoleView)
+	}
+
+}
+
+func TestHandleSendInvite_MemberRole_Accepted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.Role = string(model.RoleMember)
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("expected nil error for Member role, got %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email for Member role, got %d", len(email.Calls))
+	}
+	if email.Calls[0].Role != string(model.RoleMember) {
+		t.Errorf("role: got %q, want %q", email.Calls[0].Role, model.RoleMember)
+	}
+
+}
+
+// M18.1: a LinkGenerator failure returns an error and never calls SendNotification.
+func TestHandleSendInvite_LinkGeneratorFailure_NoEmailSent(t *testing.T) {
+	linkErr := errors.New("signing key unavailable")
+	email := &mocks.EmailSender{}
+	svc := NewNotificationService(email, &errorLinkGenerator{err: linkErr}, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
+
+	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	if err == nil {
+		t.Fatal("expected error when link generator fails, got nil")
+	}
+	if len(email.Calls) != 0 {
+		t.Errorf("expected no email sent when link generation fails, got %d call(s)", len(email.Calls))
+	}
+}
+
+// TestHandleSendInvite_CustomClaimsValidationError verifies that ErrInvalidCustomClaims
+// from the link generator is surfaced as ErrInvalidRequest so callers receive
+// "invalid_request" rather than "internal_error".
+func TestHandleSendInvite_CustomClaimsValidationError(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := NewNotificationService(email, &errorLinkGenerator{err: port.ErrInvalidCustomClaims}, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
+
+	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	if err == nil {
+		t.Fatal("expected error when link generator returns ErrInvalidCustomClaims, got nil")
+	}
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Errorf("expected ErrInvalidRequest, got %v", err)
+	}
+	if len(email.Calls) != 0 {
+		t.Errorf("expected no email sent on validation error, got %d call(s)", len(email.Calls))
+	}
+}
+
+// TestHandleSendInvite_InviteStorePersistsPending verifies that a successful send
+// creates a pending InviteRecord in the store with the destination URL (not the JWT link).
+func TestHandleSendInvite_InviteStorePersistsPending(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	originalURL := req.ReturnURL
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	record := store.CreateCalls[0]
+	if record.Status != model.InviteStatusPending {
+		t.Errorf("status: got %q, want %q", record.Status, model.InviteStatusPending)
+	}
+	if record.Recipient.Email != "alice@example.com" {
+		t.Errorf("recipient.email: got %q, want %q", record.Recipient.Email, "alice@example.com")
+	}
+	if record.ReturnURL != originalURL {
+		t.Errorf("return_url should be original destination URL %q, got %q (JWT link was stored instead)", originalURL, record.ReturnURL)
+	}
+	if record.UID == "" {
+		t.Error("record.UID should not be empty")
+	}
+	if record.ExpiresAt.IsZero() {
+		t.Error("record.ExpiresAt should not be zero")
+	}
+}
+
+// TestHandleSendInvite_StoreFailureAbortsSend verifies that a KV write failure
+// returns an error and does not dispatch the email — we never send an invite we
+// cannot track.
+func TestHandleSendInvite_StoreFailureAbortsSend(t *testing.T) {
+	buf := captureLogs(t)
+
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{
+		CreateFunc: func(_ context.Context, _ *model.InviteRecord) error {
+			return errors.New("kv unavailable")
+		},
+	}
+	svc := newServiceWithStore(email, store)
+
+	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	if err == nil {
+		t.Fatal("expected error when store fails, got nil")
+	}
+	if len(email.Calls) != 0 {
+		t.Errorf("expected no email sent when store fails, got %d", len(email.Calls))
+	}
+	if !strings.Contains(buf.String(), "invite_store") {
+		t.Error("expected invite_store error log entry, found none")
+	}
+}
+
+// TestHandleSendInvite_EmailSendError_TriggersDeleteRollback verifies that when
+// the invite record is persisted but email dispatch fails, Delete is called to roll
+// back the stored record so a phantom invite is not left in KV.
+func TestHandleSendInvite_EmailSendError_TriggersDeleteRollback(t *testing.T) {
+	sendErr := errors.New("smtp timeout")
+	email := &mocks.EmailSender{
+		SendFunc: func(_ context.Context, _ model.InviteEmailPayload) error {
+			return sendErr
+		},
+	}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	if err == nil {
+		t.Fatal("expected error when email send fails, got nil")
+	}
+	if !errors.Is(err, ErrEmailDispatchFailed) {
+		t.Errorf("expected ErrEmailDispatchFailed, got %v", err)
+	}
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	if len(store.DeleteCalls) != 1 {
+		t.Fatalf("expected 1 store.Delete rollback call, got %d — email-failure rollback not triggered", len(store.DeleteCalls))
+	}
+	if store.DeleteCalls[0] != store.CreateCalls[0].UID {
+		t.Errorf("Delete called with UID %q, want %q (the created invite's UID)", store.DeleteCalls[0], store.CreateCalls[0].UID)
+	}
+}
+
+// TestHandleSendInvite_StructuredObjectsPreferred verifies that when structured
+// Recipient/Inviter/Resource objects are provided, they take precedence over deprecated scalars.
+func TestHandleSendInvite_StructuredObjectsPreferred(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := &model.SendInviteRequest{
+		// Structured objects (preferred).
+		Recipient: &model.Recipient{Name: "Alice Structured", Email: "alice-structured@example.com"},
+		Inviter:   &model.Inviter{Name: "Bob Structured", Username: "bob-s", Email: "bob@example.com"},
+		Resource:  &model.InviteResource{UID: "structured-res", Name: "Structured Project", Type: "project"},
+		// Deprecated scalars — should be ignored when structured objects are present.
+		RecipientEmail: "alice-scalar@example.com",
+		RecipientName:  "Alice Scalar",
+		InviterName:    "Bob Scalar",
+		ResourceUID:    "scalar-res",
+		ResourceName:   "Scalar Project",
+		Role:           string(model.RoleManage),
+	}
+
+	result, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RecipientEmail != "alice-structured@example.com" {
+		t.Errorf("result.RecipientEmail: got %q, want structured email", result.RecipientEmail)
+	}
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	record := store.CreateCalls[0]
+	if record.Recipient.Email != "alice-structured@example.com" {
+		t.Errorf("record.Recipient.Email: got %q, want structured email", record.Recipient.Email)
+	}
+	if record.Inviter.Username != "bob-s" {
+		t.Errorf("record.Inviter.Username: got %q, want %q", record.Inviter.Username, "bob-s")
+	}
+	if record.Resource.UID != "structured-res" {
+		t.Errorf("record.Resource.UID: got %q, want %q", record.Resource.UID, "structured-res")
+	}
+}
+
+// M18.2: the InviteLink in the email payload is the signed link, not the original destination URL.
+func TestHandleSendInvite_InviteLinkIsSignedLink(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	originalURL := req.ReturnURL
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email, got %d", len(email.Calls))
+	}
+	got := email.Calls[0].InviteLink
+	if got == originalURL {
+		t.Errorf("InviteLink was not replaced: still %q (expected a signed invite link)", got)
+	}
+	if !strings.Contains(got, "/invite?token=") {
+		t.Errorf("InviteLink %q does not look like a signed invite link", got)
+	}
+}
+
+// spyLinkGenerator records the full LinkPayload passed to Generate so tests can
+// assert that HandleSendInvite maps every request field correctly.
+type spyLinkGenerator struct {
+	captured port.LinkPayload
+}
+
+func (s *spyLinkGenerator) Generate(_ context.Context, p port.LinkPayload) (string, string, time.Time, map[string]string, error) {
+	s.captured = p
+	return testBaseURL + "/invite?token=spy-token-for-" + p.RecipientEmail, "spy-invite-uid", time.Now().Add(7 * 24 * time.Hour), p.CustomClaims, nil
+}
+
+// customLinkGenerator delegates Generate to an injected function, allowing
+// individual tests to control exactly what acceptedClaims the generator returns.
+type customLinkGenerator struct {
+	generateFn func(ctx context.Context, p port.LinkPayload) (string, string, time.Time, map[string]string, error)
+}
+
+func (c *customLinkGenerator) Generate(ctx context.Context, p port.LinkPayload) (string, string, time.Time, map[string]string, error) {
+	return c.generateFn(ctx, p)
+}
+
+// TestHandleSendInvite_LinkPayloadMapping verifies that HandleSendInvite maps every
+// SendInviteRequest field to the correct LinkPayload field before calling Generate.
+func TestHandleSendInvite_LinkPayloadMapping(t *testing.T) {
+	email := &mocks.EmailSender{
+		SendFunc: func(_ context.Context, _ model.InviteEmailPayload) error { return nil },
+	}
+	spy := &spyLinkGenerator{}
+	svc := NewNotificationService(email, spy, nil, NotificationConfig{DefaultReturnURL: testBaseURL})
+
+	req := baseInviteRequest()
+	req.Resource = &model.InviteResource{Type: "project"}
+	req.ExpirationDays = 14
+	req.CustomClaims = map[string]string{
+		"committee_invite_uid": "inv-abc123",
+		"extra_key":            "extra_value",
+	}
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("HandleSendInvite() error = %v", err)
+	}
+
+	p := spy.captured
+	if p.RecipientEmail != "alice@example.com" {
+		t.Errorf("RecipientEmail = %q, want %q", p.RecipientEmail, "alice@example.com")
+	}
+	wantDest := testBaseURL + "/resources/" + testResourceUID
+	if p.DestinationURL != wantDest {
+		t.Errorf("DestinationURL = %q, want %q", p.DestinationURL, wantDest)
+	}
+	if p.ResourceUID != testResourceUID {
+		t.Errorf("ResourceUID = %q, want %q", p.ResourceUID, testResourceUID)
+	}
+	if p.ResourceType != "project" {
+		t.Errorf("ResourceType = %q, want %q", p.ResourceType, "project")
+	}
+	if p.Role != string(model.RoleManage) {
+		t.Errorf("Role = %q, want %q", p.Role, string(model.RoleManage))
+	}
+	if p.ExpirationDays != 14 {
+		t.Errorf("ExpirationDays = %d, want 14", p.ExpirationDays)
+	}
+	if p.CustomClaims == nil {
+		t.Fatal("CustomClaims is nil, want non-nil map")
+	}
+	if got := p.CustomClaims["committee_invite_uid"]; got != "inv-abc123" {
+		t.Errorf("CustomClaims[committee_invite_uid] = %q, want %q", got, "inv-abc123")
+	}
+	if got := p.CustomClaims["extra_key"]; got != "extra_value" {
+		t.Errorf("CustomClaims[extra_key] = %q, want %q", got, "extra_value")
+	}
+}
+
+// TestHandleSendInvite_RecipientHasAccount_PropagatesFlag verifies that when the
+// caller sets RecipientHasAccount=true the flag reaches the EmailSender unchanged,
+// so the invite service can select the correct email template.
+func TestHandleSendInvite_RecipientHasAccount_PropagatesFlag(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.RecipientHasAccount = true
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email send, got %d", len(email.Calls))
+	}
+	if !email.Calls[0].RecipientHasAccount {
+		t.Error("RecipientHasAccount: got false in email payload, want true")
+	}
+}
+
+// TestHandleSendInvite_CustomClaimsPersisted verifies that custom claims supplied by
+// the caller are stored in the InviteRecord so that downstream consumers of
+// InviteServiceAcceptedEvent receive them without a separate lookup.
+func TestHandleSendInvite_CustomClaimsPersisted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	req.CustomClaims = map[string]string{
+		"formation_invite_uid": "form-inv-xyz",
+		"item_uids":            "uid-1,uid-2,uid-3",
+	}
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	record := store.CreateCalls[0]
+	if record.CustomClaims == nil {
+		t.Fatal("CustomClaims in stored record is nil, want non-nil map")
+	}
+	if got := record.CustomClaims["formation_invite_uid"]; got != "form-inv-xyz" {
+		t.Errorf("CustomClaims[formation_invite_uid] = %q, want %q", got, "form-inv-xyz")
+	}
+	if got := record.CustomClaims["item_uids"]; got != "uid-1,uid-2,uid-3" {
+		t.Errorf("CustomClaims[item_uids] = %q, want %q", got, "uid-1,uid-2,uid-3")
+	}
+}
+
+// TestHandleSendInvite_NilCustomClaims_NotPersisted verifies that when no custom
+// claims are supplied the stored record has a nil map (not an empty map), so the
+// KV JSON omits the field entirely.
+func TestHandleSendInvite_NilCustomClaims_NotPersisted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	// req.CustomClaims is intentionally nil.
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	if store.CreateCalls[0].CustomClaims != nil {
+		t.Errorf("CustomClaims should be nil when not supplied, got %v", store.CreateCalls[0].CustomClaims)
+	}
+}
+
+// TestHandleSendInvite_EmptyCustomClaims_NotPersisted verifies that an explicitly
+// supplied empty map is treated the same as nil — the stored record has a nil
+// CustomClaims field so the KV JSON omits it entirely.
+func TestHandleSendInvite_EmptyCustomClaims_NotPersisted(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	req.CustomClaims = map[string]string{} // explicit empty map
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	if store.CreateCalls[0].CustomClaims != nil {
+		t.Errorf("CustomClaims should be nil for empty map input, got %v", store.CreateCalls[0].CustomClaims)
+	}
+}
+
+// TestHandleSendInvite_ReservedCustomClaimsFiltered verifies that notification.go
+// persists exactly what the link generator returns in acceptedClaims — if the
+// generator drops reserved keys, the stored record must not contain them.
+// (The generator's own filtering logic is tested in auth/generator_test.go.)
+func TestHandleSendInvite_ReservedCustomClaimsFiltered(t *testing.T) {
+	// filteringGen simulates a generator that strips reserved keys before
+	// returning acceptedClaims, just as auth.LinkGenerator does in production.
+	reserved := map[string]struct{}{
+		"email": {}, "role": {}, "resource_uid": {},
+	}
+	filteringGen := &customLinkGenerator{
+		generateFn: func(_ context.Context, p port.LinkPayload) (string, string, time.Time, map[string]string, error) {
+			accepted := make(map[string]string)
+			for k, v := range p.CustomClaims {
+				if _, isReserved := reserved[k]; !isReserved {
+					accepted[k] = v
+				}
+			}
+			if len(accepted) == 0 {
+				accepted = nil
+			}
+			return testBaseURL + "/invite?token=filter-test", "filter-uid", time.Now().Add(7 * 24 * time.Hour), accepted, nil
+		},
+	}
+
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := NewNotificationService(email, filteringGen, store, NotificationConfig{DefaultReturnURL: testBaseURL})
+
+	req := baseInviteRequest()
+	req.CustomClaims = map[string]string{
+		"formation_invite_uid": "form-inv-xyz", // should be kept
+		"email":                "evil@x.com",   // reserved — generator drops it
+		"role":                 "Admin",        // reserved — generator drops it
+		"resource_uid":         "bad-uid",      // reserved — generator drops it
+	}
+
+	_, err := svc.HandleSendInvite(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store.Create call, got %d", len(store.CreateCalls))
+	}
+	record := store.CreateCalls[0]
+	if record.CustomClaims == nil {
+		t.Fatal("CustomClaims in stored record is nil, want non-nil map with allowed keys")
+	}
+	if got := record.CustomClaims["formation_invite_uid"]; got != "form-inv-xyz" {
+		t.Errorf("CustomClaims[formation_invite_uid] = %q, want %q", got, "form-inv-xyz")
+	}
+	for _, reservedKey := range []string{"email", "role", "resource_uid"} {
+		if _, ok := record.CustomClaims[reservedKey]; ok {
+			t.Errorf("reserved key %q must not be stored in CustomClaims", reservedKey)
+		}
+	}
+}
+
+// M18.3: when SendNotification fails, a DeliveryStateFailed audit entry is emitted.
+func TestHandleSendInvite_EmailSendError_AuditsFailed(t *testing.T) {
+	buf := captureLogs(t)
+
+	sendErr := errors.New("smtp timeout")
+	email := &mocks.EmailSender{
+		SendFunc: func(_ context.Context, _ model.InviteEmailPayload) error { return sendErr },
+	}
+	svc := newService(email)
+
+	_, err := svc.HandleSendInvite(context.Background(), baseInviteRequest())
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, ErrEmailDispatchFailed) {
+		t.Errorf("expected ErrEmailDispatchFailed in error chain, got %v", err)
+	}
+
+	logs := buf.String()
+	if !strings.Contains(logs, "notification_audit") {
+		t.Error("expected a notification_audit log entry, found none")
+	}
+	if !strings.Contains(logs, string(model.DeliveryStateFailed)) {
+		t.Errorf("expected delivery_state %q in audit log, got:\n%s", model.DeliveryStateFailed, logs)
+	}
+}
+
+// --- ParentName propagation ---
+
+// TestHandleSendInvite_ParentNamePropagatedToEmailPayload verifies that
+// Resource.ParentName is forwarded to InviteEmailPayload.ParentResourceName
+// so the email template can render the parent context clause.
+func TestHandleSendInvite_ParentNamePropagatedToEmailPayload(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.Resource = &model.InviteResource{
+		UID:        testResourceUID,
+		Name:       "My Formation",
+		Type:       "formation",
+		ParentName: "Parent Project",
+	}
+
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email send call, got %d", len(email.Calls))
+	}
+	got := email.Calls[0].ParentResourceName
+	if got != "Parent Project" {
+		t.Errorf("InviteEmailPayload.ParentResourceName = %q, want %q", got, "Parent Project")
+	}
+}
+
+// TestHandleSendInvite_ParentNameEmptyWhenNotSet verifies that
+// InviteEmailPayload.ParentResourceName is empty when the caller does not
+// supply Resource.ParentName — i.e. top-level resources are unaffected.
+func TestHandleSendInvite_ParentNameEmptyWhenNotSet(t *testing.T) {
+	email := &mocks.EmailSender{}
+	svc := newService(email)
+
+	req := baseInviteRequest()
+	req.Resource = &model.InviteResource{
+		UID:  testResourceUID,
+		Name: "My Project",
+		Type: "project",
+		// ParentName intentionally omitted
+	}
+
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(email.Calls) != 1 {
+		t.Fatalf("expected 1 email send call, got %d", len(email.Calls))
+	}
+	if got := email.Calls[0].ParentResourceName; got != "" {
+		t.Errorf("InviteEmailPayload.ParentResourceName = %q, want empty", got)
+	}
+}
+
+// TestHandleSendInvite_ParentNamePersistedInRecord verifies that
+// Resource.ParentName is persisted in the InviteRecord stored in the KV bucket.
+func TestHandleSendInvite_ParentNamePersistedInRecord(t *testing.T) {
+	email := &mocks.EmailSender{}
+	store := &mocks.InviteStore{}
+	svc := newServiceWithStore(email, store)
+
+	req := baseInviteRequest()
+	req.Resource = &model.InviteResource{
+		UID:        testResourceUID,
+		Name:       "My Formation",
+		Type:       "formation",
+		ParentName: "Parent Project",
+	}
+
+	if _, err := svc.HandleSendInvite(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(store.CreateCalls) != 1 {
+		t.Fatalf("expected 1 store create call, got %d", len(store.CreateCalls))
+	}
+	record := store.CreateCalls[0]
+	if record.Resource.ParentName != "Parent Project" {
+		t.Errorf("InviteRecord.Resource.ParentName = %q, want %q", record.Resource.ParentName, "Parent Project")
+	}
+}
