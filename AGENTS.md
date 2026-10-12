@@ -183,6 +183,7 @@ Application config reads are centralized in `cmd/invite-api/service/config.go` �
 | Variable | Default | Notes |
 |---|---|---|
 | `NATS_URL` | `nats://lfx-platform-nats.lfx.svc.cluster.local:4222` | Use `nats://localhost:4222` for local dev |
+| `NATS_NKEY_SEED` | `""` (anonymous) | User nkey seed; the service authenticates as that nkey user. Set it once the platform NATS config (`lfx-v2-helm` `nats.lfxAuthorization`) lists the matching public key, or the connection is refused. Leave unset for local dev |
 | `INVITE_JWT_SECRET` | _(required)_ | HS256 signing key; must be ≥ 32 bytes; fatal at startup if unset or too short |
 | `LFX_SELF_SERVE_BASE_URL` | _(env-aware; see below)_ | Base URL for the invite link (`{base}/invite?token=…`). Overrides the `LFX_ENVIRONMENT` default when set |
 | `LFX_ENVIRONMENT` | `""` (dev) | `prod` → `https://app.lfx.dev`; `staging`/`stg` → `https://app.staging.lfx.dev`; otherwise → `https://app.dev.lfx.dev` |

@@ -52,6 +52,14 @@ spec:
           env:
             - name: NATS_URL
               value: {{ .Values.nats.url }}
+            {{- if .Values.nats.nkeySecretName }}
+            - name: NATS_NKEY_SEED
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.nats.nkeySecretName }}
+                  key: nats-nkey-seed
+                  optional: false
+            {{- end }}
             - name: LFX_SELF_SERVE_BASE_URL
               value: {{ .Values.app.selfServeBaseURL | quote }}
             - name: DEFAULT_INVITE_LINK_RETURN_URL

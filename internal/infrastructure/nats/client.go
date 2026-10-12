@@ -5,11 +5,13 @@ package nats
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"github.com/nats-io/nkeys"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -23,25 +25,56 @@ type Client struct {
 	conn *nats.Conn
 }
 
-// New creates a NATS client connected to the given URL.
-func New(ctx context.Context, url string) (*Client, error) {
-	conn, err := nats.Connect(url,
+// New creates a NATS client connected to the given URL. When nkeySeed is
+// non-empty the connection authenticates as that nkey user, which the platform
+// NATS config uses to let only this service publish on its restricted
+// subjects; when empty the connection is anonymous.
+func New(ctx context.Context, url, nkeySeed string) (*Client, error) {
+	opts := []nats.Option{
 		nats.RetryOnFailedConnect(true),
 		nats.MaxReconnects(-1),
-		nats.ReconnectWait(2*time.Second),
+		nats.ReconnectWait(2 * time.Second),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
 			slog.ErrorContext(ctx, "NATS disconnected", "error", err)
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
 			slog.InfoContext(ctx, "NATS reconnected", "url", nc.ConnectedUrl())
 		}),
-	)
+	}
+	if nkeySeed != "" {
+		nkeyOpt, pub, err := nkeyOption(nkeySeed)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, nkeyOpt)
+		slog.InfoContext(ctx, "NATS authenticating with nkey", "nkey", pub)
+	}
+
+	conn, err := nats.Connect(url, opts...)
 	if err != nil {
 		return nil, newServiceUnavailable("failed to connect to NATS", err)
 	}
 
 	slog.InfoContext(ctx, "NATS connected", "url", conn.ConnectedUrl())
 	return &Client{conn: conn}, nil
+}
+
+// nkeyOption builds the nats.Nkey option for a user seed and returns the
+// matching public key for logging. Anything other than a user seed is
+// rejected so a misconfigured secret fails at startup rather than at connect.
+func nkeyOption(seed string) (nats.Option, string, error) {
+	kp, err := nkeys.FromSeed([]byte(seed))
+	if err != nil {
+		return nil, "", fmt.Errorf("parse NATS nkey seed: %w", err)
+	}
+	pub, err := kp.PublicKey()
+	if err != nil {
+		return nil, "", fmt.Errorf("derive NATS nkey public key: %w", err)
+	}
+	if !nkeys.IsValidPublicUserKey(pub) {
+		return nil, "", fmt.Errorf("NATS nkey seed is not a user seed (public key %s)", pub)
+	}
+	return nats.Nkey(pub, kp.Sign), pub, nil
 }
 
 // Close drains and closes the NATS connection.

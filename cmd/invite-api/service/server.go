@@ -62,7 +62,7 @@ func NewServerFromConfig(ctx context.Context, cfg AppConfig) (*Server, error) {
 		return nil, fmt.Errorf("INVITE_JWT_SECRET must be at least 32 bytes for HS256 (got %d)", len(cfg.InviteJWTSecret))
 	}
 
-	nc, err := natsinfra.New(ctx, cfg.NATSURL)
+	nc, err := natsinfra.New(ctx, cfg.NATSURL, cfg.NATSNkeySeed)
 	if err != nil {
 		return nil, err
 	}

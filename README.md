@@ -492,6 +492,7 @@ nats kv add invites --history=20 --storage=file
 | Variable | Default | Description |
 |---|---|---|
 | `NATS_URL` | `nats://lfx-platform-nats.lfx.svc.cluster.local:4222` | NATS server URL |
+| `NATS_NKEY_SEED` | (unset → anonymous) | User nkey seed to authenticate to NATS with. Required once the platform restricts publish on `lfx.invite-service.invite_accepted` and the `invites` KV bucket to this service |
 | `INVITE_JWT_SECRET` | (required) | HMAC-SHA256 key (≥32 bytes) for signing invite JWTs |
 | `INVITES_KV_BUCKET` | `invites` | Name of the NATS JetStream KV bucket for invite records |
 | `DEFAULT_INVITE_LINK_RETURN_URL` | auto (falls back to `LFX_SELF_SERVE_BASE_URL`) | Fallback return URL when the caller omits `return_url` |

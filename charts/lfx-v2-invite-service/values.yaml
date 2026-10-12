@@ -135,6 +135,18 @@ nats:
   # url is the URL of the NATS server
   url: nats://lfx-platform-nats.lfx.svc.cluster.local:4222
 
+  # nkeySecretName is the name of a Kubernetes Secret holding this service's
+  # NATS user nkey seed under key: nats-nkey-seed. When set, the service
+  # authenticates to NATS as that nkey user, which the platform NATS config
+  # (lfx-v2-helm nats.lfxAuthorization) uses to restrict who may publish
+  # lfx.invite-service.invite_accepted and write the invites KV bucket.
+  # The platform must list the matching public key before this is set, or the
+  # connection is refused. Leave empty to connect anonymously. With
+  # externalSecretsOperator enabled, add a nats-nkey-seed entry to
+  # externalSecretsOperator.externalSecret.data and point this at the
+  # ESO-managed Secret (named after the chart).
+  nkeySecretName: ""
+
   # kv_bucket_invites is the configuration for the KV bucket that stores invite records.
   kv_bucket_invites:
     # creation is a boolean to determine if the KV bucket should be created via the helm chart.

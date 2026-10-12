@@ -10,7 +10,10 @@ import (
 
 // AppConfig holds all runtime configuration read from environment variables.
 type AppConfig struct {
-	NATSURL               string
+	NATSURL string
+	// NATSNkeySeed is the user nkey seed to authenticate to NATS with. Empty
+	// means connect anonymously.
+	NATSNkeySeed          string
 	LogLevel              string
 	DefaultReturnURL      string
 	InviteJWTSecret       string
@@ -54,6 +57,7 @@ func AppConfigFromEnv() AppConfig {
 
 	return AppConfig{
 		NATSURL:               natsURL,
+		NATSNkeySeed:          strings.TrimSpace(os.Getenv("NATS_NKEY_SEED")),
 		LogLevel:              os.Getenv("LOG_LEVEL"),
 		DefaultReturnURL:      defaultReturnURL,
 		InviteJWTSecret:       os.Getenv("INVITE_JWT_SECRET"),
