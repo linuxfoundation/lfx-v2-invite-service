@@ -131,6 +131,14 @@ func TestAcceptanceService_HandleInviteAccepted(t *testing.T) {
 			wantVerifierCalled: true,
 		},
 		{
+			name:               "discards event when verifier returns an unexpected error",
+			event:              validEvent,
+			record:             pendingRecord(),
+			verifierErr:        errTransient,
+			wantGetByUID:       true,
+			wantVerifierCalled: true,
+		},
+		{
 			name:               "rejects token issued for a different invite",
 			event:              validEvent,
 			record:             pendingRecord(),
