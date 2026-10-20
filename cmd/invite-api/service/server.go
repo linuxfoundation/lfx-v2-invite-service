@@ -86,7 +86,7 @@ func NewServerFromConfig(ctx context.Context, cfg AppConfig) (*Server, error) {
 			AllowedReturnURLHosts: cfg.AllowedReturnURLHosts,
 		},
 	)
-	acceptSvc := intsvc.NewAcceptanceService(inviteStore, nc)
+	acceptSvc := intsvc.NewAcceptanceService(inviteStore, nc, authinfra.NewTokenVerifier([]byte(cfg.InviteJWTSecret)))
 	readSvc := intsvc.NewInviteReadService(inviteStore)
 
 	slog.InfoContext(ctx, "infrastructure initialised",
