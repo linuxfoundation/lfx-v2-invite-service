@@ -88,3 +88,7 @@ helm-install-local:
 .PHONY: helm-templates
 helm-templates:
 	helm template $(HELM_RELEASE_NAME) $(HELM_CHART_PATH) --namespace $(HELM_NAMESPACE)
+
+.PHONY: helm-test
+helm-test:
+	./scripts/helm-test.sh $(HELM_CHART_PATH)

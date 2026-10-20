@@ -102,6 +102,7 @@ make license-check    # standalone license-header check for all .go files
 make docker-build     # build Docker image (ghcr.io/linuxfoundation/lfx-v2-invite-service/invite-service)
 make helm-install-local  # helm upgrade --install with values.local.yaml overlay
 make helm-templates      # render chart templates to stdout (no cluster needed)
+make helm-test           # chart render tests (image digest/tag selection)
 ```
 
 ## Local dev loop
