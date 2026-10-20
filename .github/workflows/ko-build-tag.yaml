@@ -26,6 +26,7 @@ jobs:
       app_version: ${{ steps.prepare.outputs.app_version }}
       chart_name: ${{ steps.prepare.outputs.chart_name }}
       chart_version: ${{ steps.prepare.outputs.chart_version }}
+      image_digest: ${{ steps.build.outputs.image_digest }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -44,29 +45,37 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
 
       - name: Setup Ko
-        uses: ko-build/setup-ko@v0.8
+        uses: ko-build/setup-ko@d982fec422852203cfb2053a8ec6ad302280d04d # v0.8
         with:
           version: v0.17.1
 
       - name: Build and publish invite-api image
+        id: build
         env:
           VERSION: ${{ steps.prepare.outputs.app_version }}
           GIT_COMMIT: ${{ github.sha }}
         run: |
+          set -euo pipefail
           GIT_COMMIT=${GIT_COMMIT:0:7}
           export GIT_COMMIT
-          ko build github.com/linuxfoundation/lfx-v2-invite-service/cmd/invite-api \
+          IMAGE_REF=$(ko build github.com/linuxfoundation/lfx-v2-invite-service/cmd/invite-api \
             -B \
             --platform linux/amd64,linux/arm64 \
             -t ${{ github.ref_name }} \
             -t ${{ steps.prepare.outputs.app_version }} \
             -t latest \
-            --sbom spdx
+            --sbom spdx | tail -n 1)
+          IMAGE_DIGEST="${IMAGE_REF##*@}"
+          if ! [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Could not determine image digest from ko output: $IMAGE_REF"
+            exit 1
+          fi
+          echo "image_digest=$IMAGE_DIGEST" >> "$GITHUB_OUTPUT"
 
   release-helm-chart:
     needs: publish
@@ -81,6 +90,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      # Pin the released chart to the exact image digest built above so a
+      # re-pushed image under the same tag is not deployed. The chart (and
+      # therefore this digest) is covered by the cosign signature and SLSA
+      # provenance produced below.
+      - name: Pin image digest in chart values
+        env:
+          CHART_NAME: ${{ needs.publish.outputs.chart_name }}
+          IMAGE_DIGEST: ${{ needs.publish.outputs.image_digest }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Invalid image digest from publish job: $IMAGE_DIGEST"
+            exit 1
+          fi
+          yq -i '.image.digest = strenv(IMAGE_DIGEST)' "charts/${CHART_NAME}/values.yaml"
 
       - name: Publish Chart to GHCR
         id: publish-ghcr

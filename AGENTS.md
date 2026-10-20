@@ -256,6 +256,7 @@ Every `.go` file must start with:
 
 - `nats-kv-buckets.yaml` — provisions the `invites` KV bucket via the nack `KeyValue` CRD.
 - `externalsecret.yaml` + `secretstore.yaml` — Optional External Secrets Operator (ESO) integration for `INVITE_JWT_SECRET` from AWS Secrets Manager. ESO is disabled by default (`externalSecretsOperator.enabled: false`).
+- `image.digest` is empty in source; the tagged-release workflow (`ko-build-tag.yaml`) writes the digest of the image it just built into the packaged chart, so released charts pin the image by digest (covered by the chart's cosign signature and SLSA provenance). The digest is only applied when the effective tag equals `Chart.appVersion`. Do not remove this step, and keep every `uses:` in publish workflows pinned to a full commit SHA (the SLSA generator reusable workflow is the one exception; it must be tag-referenced).
 - The `INVITE_JWT_SECRET` is never baked into the chart; it is always injected at runtime from a Kubernetes Secret (named by `app.jwtSecretName`). That Secret may be created by ESO when enabled, or provisioned independently by another mechanism.
 
 ## Related Services
