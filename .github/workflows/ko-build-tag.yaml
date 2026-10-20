@@ -29,7 +29,7 @@ jobs:
       image_digest: ${{ steps.build.outputs.image_digest }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Prepare versions and chart name
         id: prepare
@@ -50,9 +50,9 @@ jobs:
           go-version-file: go.mod
 
       - name: Setup Ko
-        uses: ko-build/setup-ko@d982fec422852203cfb2053a8ec6ad302280d04d # v0.8
+        uses: ko-build/setup-ko@d006021bd0c28d1ce33a07e7943d48b079944c8d # v0.9
         with:
-          version: v0.17.1
+          version: v0.18.0
 
       - name: Build and publish invite-api image
         id: build
@@ -89,7 +89,7 @@ jobs:
       image_name: ${{ steps.publish-ghcr.outputs.image_name }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       # Pin the released chart to the exact image digest built above so a
       # re-pushed image under the same tag is not deployed. The chart (and
