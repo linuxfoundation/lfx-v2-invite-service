@@ -150,6 +150,8 @@ func (r *NATSInviteRepository) GetByEmail(ctx context.Context, email string) ([]
 // concurrency (read-with-revision + conditional update) with up to maxMarkAcceptedRetries
 // retries on revision mismatch. If the record does not exist, port.ErrInviteNotFound is
 // returned so the caller can distinguish "invite not tracked here" from a transient error.
+// If the record's ExpiresAt is not after both at and the current time,
+// port.ErrInviteExpired is returned and nothing is written.
 func (r *NATSInviteRepository) MarkAccepted(ctx context.Context, uid, username string, at time.Time) error {
 	lastErr := newServiceUnavailable("invite_repository: mark_accepted: retries exhausted", nil)
 	for attempt := range maxMarkAcceptedRetries {
@@ -172,6 +174,14 @@ func (r *NATSInviteRepository) MarkAccepted(ctx context.Context, uid, username s
 		// side-effects (e.g. re-publishing the enriched InviteServiceAcceptedEvent).
 		if record.Status == model.InviteStatusAccepted {
 			return port.ErrAlreadyAccepted
+		}
+
+		// Expired invites must never transition to accepted. Records are retained
+		// permanently (no TTL), so this check is the only expiry gate at write time.
+		// The current time is checked as well as at, because at is captured before
+		// token verification and KV reads. A zero ExpiresAt fails closed.
+		if !at.Before(record.ExpiresAt) || !time.Now().Before(record.ExpiresAt) {
+			return port.ErrInviteExpired
 		}
 
 		record.Status = model.InviteStatusAccepted

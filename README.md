@@ -274,12 +274,27 @@ On receipt the invite service marks the KV record `status: accepted`, sets
 If the `invite_uid` is not found in the invite-service KV store (i.e. the invite
 belongs to a different service's flow), the event is silently ignored.
 
+The event must carry `token`, the signed invite JWT the user presented (the
+`token` query parameter of the invite link). Before any state change the invite
+service verifies that:
+
+- the token's signature, algorithm (HS256), issuer, audience and expiry are valid;
+- the token's `jti` / `invite_uid` equals the event's `invite_uid`;
+- the token's `email` equals the invite's recipient email;
+- the invite's `expires_at` has not passed;
+- when the invite was sent to an existing account (`recipient.username` set),
+  the event's `username` matches it.
+
+Events that fail any check are discarded: the KV record is not modified and no
+`lfx.invite-service.invite_accepted` event is published.
+
 **Event payload:**
 
 ```json
 {
   "invite_uid": "550e8400-e29b-41d4-a716-446655440000",
-  "username": "alice-lfid"
+  "username": "alice-lfid",
+  "token": "<signed invite JWT from the invite link>"
 }
 ```
 
