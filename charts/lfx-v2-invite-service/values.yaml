@@ -7,6 +7,11 @@ image:
   repository: ghcr.io/linuxfoundation/lfx-v2-invite-service/invite-api
   # tag is the container image tag (overrides appVersion from Chart.yaml)
   tag: ""
+  # digest pins the image by content digest (e.g. "sha256:..."). Tagged release
+  # builds set this to the digest of the image published for Chart.appVersion.
+  # It is only applied when the effective tag equals Chart.appVersion, so an
+  # image.tag override (e.g. "development") falls back to the tag reference.
+  digest: ""
   # pullPolicy is the image pull policy
   pullPolicy: IfNotPresent
 

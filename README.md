@@ -555,6 +555,7 @@ make helm-install-local
 | `make check` | fmt + lint + license-check + go vet |
 | `make lint` | golangci-lint only |
 | `make helm-templates` | Render the Helm chart with default values (dry-run) |
+| `make helm-test` | Run chart render tests (image digest/tag selection) |
 | `make helm-install-local` | Install/upgrade the chart into the current kube context |
 
 ### Create the Kubernetes secret
