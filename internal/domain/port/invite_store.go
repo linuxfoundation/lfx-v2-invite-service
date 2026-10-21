@@ -19,6 +19,10 @@ var ErrInviteNotFound = errors.New("invite_not_found")
 // from a real state transition and avoid triggering duplicate side-effects.
 var ErrAlreadyAccepted = errors.New("invite_already_accepted")
 
+// ErrInviteExpired is returned when an acceptance is attempted for an invite
+// whose ExpiresAt is at or before the acceptance time.
+var ErrInviteExpired = errors.New("invite_expired")
+
 // InviteStore is the storage interface for invite records.
 // Implementations are expected to be backed by NATS JetStream KeyValue.
 type InviteStore interface {
@@ -41,6 +45,8 @@ type InviteStore interface {
 	// belongs to another service's flow" from a transient storage error. Returns
 	// ErrAlreadyAccepted when the record was already in the accepted state, so callers
 	// can gate downstream side-effects (e.g. event publishing) on a real transition.
+	// Returns ErrInviteExpired, without writing, when the record's ExpiresAt is not
+	// after at.
 	MarkAccepted(ctx context.Context, uid, username string, at time.Time) error
 
 	// Delete removes the invite record and its email secondary-index entry for the

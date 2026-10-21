@@ -284,6 +284,58 @@ func TestNATSInviteRepository_MarkAccepted_AlreadyAccepted_ReturnsErrAlreadyAcce
 	}
 }
 
+func TestNATSInviteRepository_MarkAccepted_Expired_ReturnsErrInviteExpired(t *testing.T) {
+	repo := newTestRepo(t)
+	ctx := context.Background()
+
+	rec := sampleRecord("uid-expired", "alice@example.com")
+	rec.ExpiresAt = time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := repo.Create(ctx, rec); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	err := repo.MarkAccepted(ctx, "uid-expired", "alice-lfid", time.Now())
+	if !errors.Is(err, port.ErrInviteExpired) {
+		t.Fatalf("expected ErrInviteExpired for expired invite, got %v", err)
+	}
+
+	// The record must be unchanged.
+	got, err := repo.GetByUID(ctx, "uid-expired")
+	if err != nil {
+		t.Fatalf("GetByUID: %v", err)
+	}
+	if got.Status != model.InviteStatusPending || got.AcceptedBy != "" || got.AcceptedAt != nil {
+		t.Errorf("expired record was modified: status=%q accepted_by=%q accepted_at=%v",
+			got.Status, got.AcceptedBy, got.AcceptedAt)
+	}
+}
+
+func TestNATSInviteRepository_MarkAccepted_ExpiredAtWriteTime(t *testing.T) {
+	repo := newTestRepo(t)
+	ctx := context.Background()
+
+	// at precedes ExpiresAt, but the invite has expired by the time the write runs.
+	rec := sampleRecord("uid-expired-at-write", "alice@example.com")
+	rec.ExpiresAt = time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := repo.Create(ctx, rec); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	err := repo.MarkAccepted(ctx, "uid-expired-at-write", "alice-lfid", time.Now().Add(-2*time.Hour))
+	if !errors.Is(err, port.ErrInviteExpired) {
+		t.Fatalf("expected ErrInviteExpired when the invite expired before the write, got %v", err)
+	}
+
+	got, err := repo.GetByUID(ctx, "uid-expired-at-write")
+	if err != nil {
+		t.Fatalf("GetByUID: %v", err)
+	}
+	if got.Status != model.InviteStatusPending || got.AcceptedBy != "" || got.AcceptedAt != nil {
+		t.Errorf("expired record was modified: status=%q accepted_by=%q accepted_at=%v",
+			got.Status, got.AcceptedBy, got.AcceptedAt)
+	}
+}
+
 func TestNATSInviteRepository_MarkAccepted_NotFound(t *testing.T) {
 	repo := newTestRepo(t)
 

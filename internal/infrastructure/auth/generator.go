@@ -19,6 +19,11 @@ const (
 	tokenTTL          = 30 * 24 * time.Hour
 	maxExpirationDays = 90
 
+	// tokenIssuer and tokenAudience are the iss/aud values stamped on every invite
+	// token; TokenVerifier requires the same values on acceptance.
+	tokenIssuer   = "lfx-v2-invite-service"
+	tokenAudience = "lfx-self-serve"
+
 	// Limits applied to caller-supplied CustomClaims to prevent token bloat.
 	maxCustomClaims        = 16
 	maxCustomClaimKeyLen   = 64
@@ -80,8 +85,8 @@ func (g *LinkGenerator) Generate(ctx context.Context, p port.LinkPayload) (link,
 	expiresAt = now.Add(ttl)
 	claims := jwt.MapClaims{
 		// Standard claims (ASVS V3.5.3 — replay defense, algorithm pinning).
-		"iss": "lfx-v2-invite-service",
-		"aud": jwt.ClaimStrings{"lfx-self-serve"},
+		"iss": tokenIssuer,
+		"aud": jwt.ClaimStrings{tokenAudience},
 		"iat": now.Unix(),
 		"nbf": now.Unix(), // clock-skew: verifiers may allow up to 60 s of tolerance
 		"exp": expiresAt.Unix(),

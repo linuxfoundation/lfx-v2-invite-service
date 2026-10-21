@@ -210,9 +210,16 @@ type SendInviteRequest struct {
 
 // InviteAcceptedEvent is the payload published on InviteAcceptedSubject by the
 // LFX self-serve web app once a user completes the invite acceptance flow.
+//
+// Token is required: it must be the signed invite JWT the user presented (the
+// token query parameter of the invite link). The invite service verifies it and
+// binds it to the stored record before marking the invite accepted; events
+// without a valid token are discarded with no state change and no
+// InviteServiceAcceptedEvent.
 type InviteAcceptedEvent struct {
 	InviteUID string `json:"invite_uid"`
 	Username  string `json:"username"`
+	Token     string `json:"token"`
 }
 
 // GetInviteRequest is the payload for GetInviteSubject.
