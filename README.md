@@ -572,8 +572,10 @@ kubectl create secret generic lfx-v2-invite-service \
 
 > In production the secret is managed by External Secrets Operator, which
 > pulls the value from AWS Secrets Manager at
-> `/cloudops/managed-secrets/cloud/invite-service/jwt`. For local Kubernetes
-> (e.g. OrbStack) the manual `kubectl create secret` above is sufficient.
+> `/cloudops/managed-secrets/cloud/invite-service/jwt`. 
+> The ExternalSecret is declared in lfx-v2-argocd.
+> For local Kubernetes (e.g. OrbStack) the manual `kubectl create secret`
+> above is sufficient.
 
 ### Test
 
