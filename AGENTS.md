@@ -257,9 +257,8 @@ Every `.go` file must start with:
 `charts/lfx-v2-invite-service/` ships with the Go code in the same PR.
 
 - `nats-kv-buckets.yaml` — provisions the `invites` KV bucket via the nack `KeyValue` CRD.
-- `externalsecret.yaml` + `secretstore.yaml` — Optional External Secrets Operator (ESO) integration for `INVITE_JWT_SECRET` from AWS Secrets Manager. ESO is disabled by default (`externalSecretsOperator.enabled: false`).
 - `image.digest` is empty in source; the tagged-release workflow (`ko-build-tag.yaml`) writes the digest of the image it just built into the packaged chart, so released charts pin the image by digest (covered by the chart's cosign signature and SLSA provenance). The digest is only applied when the effective tag equals `Chart.appVersion`. Do not remove this step, and keep every `uses:` in publish workflows pinned to a full commit SHA (the SLSA generator reusable workflow is the one exception; it must be tag-referenced). All workflows use the same action versions; Dependabot (`.github/dependabot.yml`) keeps the SHA pins and their version comments current.
-- The `INVITE_JWT_SECRET` is never baked into the chart; it is always injected at runtime from a Kubernetes Secret (named by `app.jwtSecretName`). That Secret may be created by ESO when enabled, or provisioned independently by another mechanism.
+- The `INVITE_JWT_SECRET` is never baked into the chart; it is always injected at runtime from a Kubernetes Secret (named by `app.jwtSecretName`). That Secret is provisioned by an ExternalSecret declared in `lfx-v2-argocd` (`custom-resources/lfx-v2-invite-service/`).
 
 ## Related Services
 
