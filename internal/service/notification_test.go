@@ -62,11 +62,11 @@ func newServiceWithStore(email *mocks.EmailSender, store *mocks.InviteStore) *No
 
 func baseInviteRequest() *model.SendInviteRequest {
 	return &model.SendInviteRequest{
-		RecipientEmail: "alice@example.com",
-		RecipientName:  "Alice",
-		InviterName:    "Bob",
-		ResourceUID:    testResourceUID,
-		ResourceName:   testResourceName,
+		RecipientEmail: "alice@example.com", //nolint:staticcheck // testing deprecated scalar fallback
+		RecipientName:  "Alice",             //nolint:staticcheck // testing deprecated scalar fallback
+		InviterName:    "Bob",               //nolint:staticcheck // testing deprecated scalar fallback
+		ResourceUID:    testResourceUID,     //nolint:staticcheck // testing deprecated scalar fallback
+		ResourceName:   testResourceName,    //nolint:staticcheck // testing deprecated scalar fallback
 		Role:           string(model.RoleManage),
 		ReturnURL:      testBaseURL + "/resources/" + testResourceUID,
 	}
@@ -398,11 +398,11 @@ func TestHandleSendInvite_StructuredObjectsPreferred(t *testing.T) {
 		Inviter:   &model.Inviter{Name: "Bob Structured", Username: "bob-s", Email: "bob@example.com"},
 		Resource:  &model.InviteResource{UID: "structured-res", Name: "Structured Project", Type: "project"},
 		// Deprecated scalars — should be ignored when structured objects are present.
-		RecipientEmail: "alice-scalar@example.com",
-		RecipientName:  "Alice Scalar",
-		InviterName:    "Bob Scalar",
-		ResourceUID:    "scalar-res",
-		ResourceName:   "Scalar Project",
+		RecipientEmail: "alice-scalar@example.com", //nolint:staticcheck // deprecated scalar must be ignored when structured objects are present
+		RecipientName:  "Alice Scalar",             //nolint:staticcheck // deprecated scalar must be ignored when structured objects are present
+		InviterName:    "Bob Scalar",               //nolint:staticcheck // deprecated scalar must be ignored when structured objects are present
+		ResourceUID:    "scalar-res",               //nolint:staticcheck // deprecated scalar must be ignored when structured objects are present
+		ResourceName:   "Scalar Project",           //nolint:staticcheck // deprecated scalar must be ignored when structured objects are present
 		Role:           string(model.RoleManage),
 	}
 

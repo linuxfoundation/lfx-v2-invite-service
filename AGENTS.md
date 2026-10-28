@@ -6,7 +6,7 @@ Development guide for AI coding agents working on this service.
 
 NATS request/reply invite broker. Receives `send_invite` requests from resource services, renders the invite email template (HS256-signed JWT link), forwards the pre-rendered email to the email service for delivery, persists the invite record in a NATS JetStream KV bucket, and exposes lookup subjects so downstream services can query invites by UID or email. Handles `lfx.invite.accepted` events to mark records accepted and publishes enriched `lfx.invite-service.invite_accepted` events for downstream consumers.
 
-**Technologies:** Go 1.25, NATS JetStream KeyValue, `golang-jwt/jwt`, Kubernetes/Helm
+**Technologies:** Go 1.27.3, NATS JetStream KeyValue, `golang-jwt/jwt`, Kubernetes/Helm
 
 ## Repo Role
 
@@ -86,7 +86,7 @@ These are injected via `-ldflags` only. Do not add runtime version-detection log
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.27.3+
 - `nats` CLI (`brew install nats-io/nats-tools/nats`)
 - Docker (for local NATS + JetStream KV)
 
