@@ -521,7 +521,7 @@ nats kv add invites --history=20 --storage=file
 ### Option 1 — Run directly
 
 ```bash
-# Prerequisites: Go 1.25+, NATS with JetStream (docker run -d -p 4222:4222 nats:latest -js)
+# Prerequisites: Go 1.27.3+, NATS with JetStream (docker run -d -p 4222:4222 nats:latest -js)
 make build
 nats kv add invites --history=20 --storage=file
 
@@ -542,7 +542,7 @@ make helm-install-local
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.27.3+
 - NATS server with JetStream enabled (Docker: `docker run -d -p 4222:4222 nats:latest -js`)
 
 ### Make targets
