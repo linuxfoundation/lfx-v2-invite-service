@@ -15,10 +15,10 @@ HELM_RELEASE_NAME := lfx-v2-invite-service
 HELM_NAMESPACE := lfx
 HELM_VALUES_FILE := ./charts/lfx-v2-invite-service/values.local.yaml
 
-GO_VERSION := 1.25.0
-GOLANGCI_LINT_VERSION := v2.2.2
+GO_VERSION := 1.27.3
+GOLANGCI_LINT_VERSION := v2.15.0
 LINT_TIMEOUT := 10m
-LINT_TOOL := $(shell go env GOPATH)/bin/golangci-lint
+LINT_TOOL := $(shell go env GOPATH)/bin/golangci-lint-$(GOLANGCI_LINT_VERSION)/golangci-lint
 GO_FILES := $(shell find . -name '*.go' -not -path './gen/*' -not -path './vendor/*')
 
 ##@ Development
@@ -54,8 +54,8 @@ fmt:
 
 .PHONY: lint
 lint:
-	@which golangci-lint >/dev/null 2>&1 || go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
-	golangci-lint run ./...
+	@test -x $(LINT_TOOL) || GOBIN=$(dir $(LINT_TOOL)) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	$(LINT_TOOL) run ./...
 
 .PHONY: license-check
 license-check:
