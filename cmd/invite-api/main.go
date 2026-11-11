@@ -26,6 +26,10 @@ var (
 
 const gracefulShutdownSeconds = 25
 
+// subscriptionFlushTimeout bounds the NATS round trip that confirms the broker
+// has registered all subscriptions before the service reports ready.
+const subscriptionFlushTimeout = 5 * time.Second
+
 // errNotReady is returned by the readiness check until the server has finished
 // starting (NATS connected, KV bound, subscriptions registered).
 var errNotReady = errors.New("invite service not ready")
@@ -71,10 +75,14 @@ func run() error {
 
 	// Start the health server first so /livez answers while NATS connects.
 	// /readyz reports not-ready until the server is wired and subscribed, then
-	// tracks the NATS connection state.
+	// tracks the NATS connection state. Bind the port up front so a busy or
+	// invalid port fails startup immediately.
+	healthListener, err := appsvc.ListenHealth(cfg.Port)
+	if err != nil {
+		return err
+	}
 	var readySrv atomic.Pointer[appsvc.Server]
 	healthServer := &http.Server{
-		Addr: ":" + cfg.Port,
 		Handler: appsvc.HealthHandler(func() error {
 			s := readySrv.Load()
 			if s == nil {
@@ -87,7 +95,7 @@ func run() error {
 	healthErr := make(chan error, 1)
 	go func() {
 		slog.InfoContext(ctx, "health server listening", "port", cfg.Port)
-		if err := healthServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := healthServer.Serve(healthListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			healthErr <- err
 		}
 	}()
@@ -114,6 +122,12 @@ func run() error {
 			stop()
 		}
 	}()
+
+	// QueueSubscribe is asynchronous: confirm the broker has registered every
+	// subscription before /readyz can report ready.
+	if err := srv.Flush(subscriptionFlushTimeout); err != nil {
+		return fmt.Errorf("flush NATS subscriptions: %w", err)
+	}
 
 	readySrv.Store(srv)
 	slog.InfoContext(ctx, "invite service ready")
