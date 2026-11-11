@@ -55,6 +55,8 @@ spec:
               drop: ["ALL"]
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
+            - name: PORT
+              value: {{ .Values.service.port | quote }}
             - name: NATS_URL
               value: {{ .Values.nats.url }}
             - name: LFX_SELF_SERVE_BASE_URL
@@ -136,7 +138,23 @@ spec:
             - name: OTEL_PROPAGATORS
               value: {{ $otelPropagators | quote }}
             {{- end }}
-          # livenessProbe and readinessProbe are omitted — the service has no HTTP server yet.
-          # Add probes here once the HTTP API is introduced.
+          ports:
+            - containerPort: {{ .Values.service.port }}
+              name: web
+          # The service is a pure NATS subscriber; the HTTP server exists only to
+          # serve these probes. /livez is always 200 while the process is up;
+          # /readyz is 503 until NATS is connected and subscriptions are bound.
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: web
+            failureThreshold: 3
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: web
+            failureThreshold: 1
+            periodSeconds: 10
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

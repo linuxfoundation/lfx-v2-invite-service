@@ -5,9 +5,13 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -21,6 +25,10 @@ var (
 )
 
 const gracefulShutdownSeconds = 25
+
+// errNotReady is returned by the readiness check until the server has finished
+// starting (NATS connected, KV bound, subscriptions registered).
+var errNotReady = errors.New("invite service not ready")
 
 func init() {
 	// Bootstrap with default log level; reconfigured in run() once AppConfigFromEnv loads LOG_LEVEL.
@@ -61,6 +69,36 @@ func run() error {
 	cfg := appsvc.AppConfigFromEnv()
 	observability.InitStructureLogConfig(cfg.LogLevel)
 
+	// Start the health server first so /livez answers while NATS connects.
+	// /readyz reports not-ready until the server is wired and subscribed, then
+	// tracks the NATS connection state.
+	var readySrv atomic.Pointer[appsvc.Server]
+	healthServer := &http.Server{
+		Addr: ":" + cfg.Port,
+		Handler: appsvc.HealthHandler(func() error {
+			s := readySrv.Load()
+			if s == nil {
+				return errNotReady
+			}
+			return s.Ready()
+		}),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	healthErr := make(chan error, 1)
+	go func() {
+		slog.InfoContext(ctx, "health server listening", "port", cfg.Port)
+		if err := healthServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			healthErr <- err
+		}
+	}()
+	defer func() {
+		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if shutErr := healthServer.Shutdown(shutCtx); shutErr != nil {
+			slog.ErrorContext(ctx, "error shutting down health server", "error", shutErr)
+		}
+	}()
+
 	srv, err := appsvc.NewServerFromConfig(ctx, cfg)
 	if err != nil {
 		return err
@@ -77,12 +115,16 @@ func run() error {
 		}
 	}()
 
+	readySrv.Store(srv)
 	slog.InfoContext(ctx, "invite service ready")
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-quit
-
-	slog.InfoContext(ctx, "received shutdown signal, stopping", "signal", sig.String())
-	return nil
+	select {
+	case sig := <-quit:
+		slog.InfoContext(ctx, "received shutdown signal, stopping", "signal", sig.String())
+		return nil
+	case err := <-healthErr:
+		return fmt.Errorf("health server failed: %w", err)
+	}
 }

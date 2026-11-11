@@ -495,7 +495,7 @@ nats kv add invites --history=20 --storage=file
 
 ## Architecture Notes
 
-- **No HTTP API** — the service is a pure NATS subscriber. All operations use request/reply or fire-and-forget events.
+- **No HTTP API** — the service is a pure NATS subscriber. All operations use request/reply or fire-and-forget events. The only HTTP routes are the Kubernetes probe endpoints on `PORT` (default `8080`): `GET /livez` (always 200 while the process is up) and `GET /readyz` (503 until NATS is connected and subscriptions are bound, and while the connection is down or draining).
 - **Template ownership** — the invite service owns and renders the email template; the email service (`lfx.email-service.send_email`) handles SMTP delivery. Callers publish structured fields — no pre-rendered HTML required.
 - **Fail-closed KV persist** — the invite record is written to KV *before* the email is sent. A KV write failure aborts the operation and no email is dispatched. If the email send fails after a successful KV write, a best-effort rollback delete is attempted and `email_dispatch_failed` is returned to the caller.
 - **Own queue group for acceptance** — the service uses `invite-service-acceptance` as its queue group for `lfx.invite.accepted`, so it receives an independent copy alongside other subscribers (e.g. project-service).

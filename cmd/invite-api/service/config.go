@@ -8,6 +8,10 @@ import (
 	"strings"
 )
 
+// defaultPort is the health server port used when PORT is unset. It matches
+// the chart's service.port and the container port named "web".
+const defaultPort = "8080"
+
 // AppConfig holds all runtime configuration read from environment variables.
 type AppConfig struct {
 	NATSURL               string
@@ -16,6 +20,8 @@ type AppConfig struct {
 	InviteJWTSecret       string
 	SelfServeBaseURL      string
 	AllowedReturnURLHosts []string
+	// Port is the TCP port the health server (/livez, /readyz) listens on.
+	Port string
 	// InvitesKVBucket is the name of the NATS JetStream KeyValue bucket used
 	// to store invite records. The bucket must already exist.
 	InvitesKVBucket string
@@ -52,7 +58,13 @@ func AppConfigFromEnv() AppConfig {
 		invitesKVBucket = "invites"
 	}
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = defaultPort
+	}
+
 	return AppConfig{
+		Port:                  port,
 		NATSURL:               natsURL,
 		LogLevel:              os.Getenv("LOG_LEVEL"),
 		DefaultReturnURL:      defaultReturnURL,
