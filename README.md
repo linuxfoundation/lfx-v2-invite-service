@@ -506,6 +506,7 @@ nats kv add invites --history=20 --storage=file
 
 | Variable | Default | Description |
 |---|---|---|
+| `PORT` | `8080` | Port the health server listens on (`/livez`, `/readyz` for Kubernetes probes) |
 | `NATS_URL` | `nats://lfx-platform-nats.lfx.svc.cluster.local:4222` | NATS server URL |
 | `INVITE_JWT_SECRET` | (required) | HMAC-SHA256 key (≥32 bytes) for signing invite JWTs |
 | `INVITES_KV_BUCKET` | `invites` | Name of the NATS JetStream KV bucket for invite records |
