@@ -46,11 +46,13 @@ resources:
     memory: 32Mi
 
 # service is the configuration for the Kubernetes Service.
-# enabled is false because the service has no HTTP server yet; enable when the
-# /invite/:uuid acceptance endpoint is introduced.
+# enabled is false because the service only serves /livez and /readyz over HTTP
+# (used by the kubelet probes); enable when the /invite/:uuid acceptance
+# endpoint is introduced.
 service:
   enabled: false
-  # port is the service port (used for future health endpoints)
+  # port is the container port of the health server (/livez, /readyz). It is
+  # also the Service port when the Service is enabled.
   port: 8080
 
 # app is the configuration for the application
