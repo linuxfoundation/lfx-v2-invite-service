@@ -17,7 +17,10 @@ DISABLE_ERRORS_LINTERS:
   # blocking check. Accepted CVEs are scoped by ID in .grype.yaml instead
   # of suppressing the entire scanner.
 YAML_YAMLLINT_CONFIG_FILE: .yamllint
-REPOSITORY_KICS_ARGUMENTS: scan --no-progress --exclude-severities="medium,low,info,trace"
+# zizmor's "artipacked" audit needs the GitHub API (to verify
+# SHA-pinned action tags), which requires GITHUB_TOKEN.
+ACTION_ZIZMOR_UNSECURED_ENV_VARIABLES:
+  - GITHUB_TOKEN
 SPELL_CSPELL_ANALYZE_FILE_NAMES: false
 SPELL_VALE_PRE_COMMANDS:
   - command: mkdir -p styles
@@ -27,10 +30,10 @@ SPELL_VALE_PRE_COMMANDS:
 FILTER_REGEX_EXCLUDE: '(templates/.*\.yml|templates/.*\.yaml)'
 KUBERNETES_DIRECTORY: charts/lfx-v2-invite-service/templates
 KUBERNETES_HELM_ARGUMENTS: charts/lfx-v2-invite-service
-# The golangci-lint bundled with MegaLinter is built with Go 1.25 and cannot
-# load a go 1.27.3 module. Install golangci-lint v2.15.0 (checksum verified)
+# MegaLinter v10.1.0 bundles golangci-lint 2.13.2 and a Go 1.26 toolchain,
+# which cannot load a go 1.27.4 module. Install golangci-lint v2.15.0 (checksum verified)
 # and let go download the go.mod toolchain. Remove once a MegaLinter release
-# ships golangci-lint >= 2.15.0 and Go >= 1.27.3.
+# ships golangci-lint >= 2.15.0 and Go >= 1.27.4.
 GO_GOLANGCI_LINT_PRE_COMMANDS:
   - command: >-
       go env -w GOTOOLCHAIN=auto &&
