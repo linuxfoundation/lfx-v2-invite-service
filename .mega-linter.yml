@@ -19,7 +19,8 @@ DISABLE_ERRORS_LINTERS:
 YAML_YAMLLINT_CONFIG_FILE: .yamllint
 # zizmor's "artipacked" audit needs the GitHub API (to verify
 # SHA-pinned action tags), which requires GITHUB_TOKEN.
-ACTION_ZIZMOR_UNSECURED_ENV_VARIABLES: GITHUB_TOKEN
+ACTION_ZIZMOR_UNSECURED_ENV_VARIABLES:
+  - GITHUB_TOKEN
 SPELL_CSPELL_ANALYZE_FILE_NAMES: false
 SPELL_VALE_PRE_COMMANDS:
   - command: mkdir -p styles
