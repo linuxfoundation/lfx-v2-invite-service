@@ -15,7 +15,7 @@ HELM_RELEASE_NAME := lfx-v2-invite-service
 HELM_NAMESPACE := lfx
 HELM_VALUES_FILE := ./charts/lfx-v2-invite-service/values.local.yaml
 
-GO_VERSION := 1.27.3
+GO_VERSION := 1.27.4
 GOLANGCI_LINT_VERSION := v2.15.0
 LINT_TIMEOUT := 10m
 LINT_TOOL := $(shell go env GOPATH)/bin/golangci-lint-$(GOLANGCI_LINT_VERSION)/golangci-lint
